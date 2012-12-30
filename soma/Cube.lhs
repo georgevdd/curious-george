@@ -106,7 +106,7 @@ As mentioned before, the plan of each shape describes the cells it occupies when
 >   formChar  _  = head (show shape)
 
 
-> data Axis = X | Y | Z deriving (Enum, Show)
+> data Axis = X | Y | Z deriving Show
 
 > newtype Translation = Translation (Int, Int, Int) deriving Show
 
@@ -208,34 +208,23 @@ For each shape, the bit representations of all the forms it can have. Keeping th
 >                 [(shape, [(r, asBits f) | (r, f) <- allForms shape]) |
 >                  shape <- enumFrom L]
 
-> data PartialSolution = PartialSolution {
->   psRecipes :: [Recipe],
->   psFormBits :: [Word32],
->   psAllBits :: Word32
-> }
+> newtype Solution = Solution [(Shape, Recipe, Word32)]
 
-> rawSolutions :: [PartialSolution]
-> rawSolutions = foldl addForm [PartialSolution [] [] 0] formBits where
->   formBits = map snd combos
->   addForm partialSolutions form = [
->       (PartialSolution (r:rs) (b:bs) (pb .|. b)) |
->       (r, b) <- form,
->       (PartialSolution rs bs pb) <- partialSolutions,
->       pb .&. b == 0
+> solutions :: [Solution]
+> solutions = [s | (s, _) <- foldl addForm [(Solution [], 0)] combos] where
+>   addForm partialSolutions (shape, formData) = [
+>       (Solution ((shape, recipe, bitmap):s), (pb .|. bitmap)) |
+>       (Solution s, pb) <- partialSolutions,
+>       (recipe, bitmap) <- formData,
+>       pb .&. bitmap == 0
 >       ]
 
-> solutionForms = map expandSolution rawSolutions where
->   expandSolution :: PartialSolution -> Form
->   expandSolution = foldl1 mappend . map (uncurry fromBits) .
->                    zip shapes . reverse . psFormBits
->   shapes = map fst combos
+> expandSolution (Solution s) = foldl1 mappend [fromBits shape bitmap |
+>                                               (shape, _, bitmap) <- s]
 
-> explainSolution = unlines . map explainForm . zip shapes . reverse . psRecipes
->  where
->   explainForm :: (Shape, Recipe) -> String
->   explainForm (shape, r) = show shape ++ show r
->   (shapes, formBits) = unzip combos
+> explainSolution (Solution s) = unlines [show (shape, recipe) |
+>                                         (shape, recipe, _) <- s]
 
 Finally, print out all the solutions, separated by newlines.
 
-> main = putStrLn $ intercalate "\n" [show f | f <- solutionForms]
+> main = putStrLn $ intercalate "\n" [show (expandSolution s) | s <- solutions]
