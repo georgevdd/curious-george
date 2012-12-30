@@ -108,8 +108,7 @@ As mentioned before, the plan of each shape describes the cells it occupies when
 
 > data Axis = X | Y | Z deriving (Enum, Show)
 
-> type Cells = Int
-> newtype Translation = Translation (Cells, Cells, Cells) deriving Show
+> newtype Translation = Translation (Int, Int, Int) deriving Show
 
 > type QuarterTurns = Int
 > data Rotation = Rotation Axis QuarterTurns deriving Show
@@ -190,8 +189,8 @@ So, all the forms that a shape can have can be listed by applying each combinati
 
 As described so far, combining these lists of forms will give 48 times more solutions than are interesting, because every solution that is merely the rotation or reflection of another solution will also be found. An easy way to avoid that is to fix the orientation of one of the shapes - say, the first one. Then, there can't be any solutions that are simply rotations of another solution, because that one piece is always facing the same way. Similarly, omit any translations for it that give any forms which are mirror images. These considerations reduce the forms for the L shape to just four.
 
-> allForms :: Shape -> [(Form, Recipe)]
-> allForms shape = nubBy ((==) `on` fst) $ [(applyRecipe t $ df, t) |
+> allForms :: Shape -> [(Recipe, Form)]
+> allForms shape = nubBy ((==) `on` snd) $ [(t, applyRecipe t $ df) |
 >                                           t <- transforms shape]
 >  where
 >   df = defaultForm shape
@@ -204,34 +203,39 @@ As described so far, combining these lists of forms will give 48 times more solu
 
 For each shape, the bit representations of all the forms it can have. Keeping this list on its own avoids computing a shape's forms and their bit representations afresh for each new partial solution in which the shape is being considered.
 
-> combos :: [(Shape, [(Word32, Recipe)])]
+> combos :: [(Shape, [(Recipe, Word32)])]
 > combos = sortBy (comparing (length . snd))
->                 [(shape, [(asBits f, r) | (f, r) <- allForms shape]) |
+>                 [(shape, [(r, asBits f) | (r, f) <- allForms shape]) |
 >                  shape <- enumFrom L]
 
-> type PartialSolution = ([Word32], Word32, [Recipe])
+> data PartialSolution = PartialSolution {
+>   psRecipes :: [Recipe],
+>   psFormBits :: [Word32],
+>   psAllBits :: Word32
+> }
 
 > rawSolutions :: [PartialSolution]
-> rawSolutions = foldl addForm [([], 0, [])] formBits where
+> rawSolutions = foldl addForm [PartialSolution [] [] 0] formBits where
 >   formBits = map snd combos
->   addForm partialSolution form = [(b:bs, pb .|. b, r:rs) |
->                                   (b, r) <- form,
->                                   (bs, pb, rs) <- partialSolution,
->                                   pb .&. b == 0]
+>   addForm partialSolutions form = [
+>       (PartialSolution (r:rs) (b:bs) (pb .|. b)) |
+>       (r, b) <- form,
+>       (PartialSolution rs bs pb) <- partialSolutions,
+>       pb .&. b == 0
+>       ]
 
-> solutions = map expandSolution rawSolutions where
->   expandSolution :: ([Word32], a, b) -> Form
->   expandSolution = foldl1 mappend . map (uncurry fromBits) . zip shapes . reverse . xx
+> solutionForms = map expandSolution rawSolutions where
+>   expandSolution :: PartialSolution -> Form
+>   expandSolution = foldl1 mappend . map (uncurry fromBits) .
+>                    zip shapes . reverse . psFormBits
 >   shapes = map fst combos
->   xx (a, _, _) = a
 
-> explainSolution = unlines . map explainForm . zip shapes . reverse . thd
+> explainSolution = unlines . map explainForm . zip shapes . reverse . psRecipes
 >  where
 >   explainForm :: (Shape, Recipe) -> String
 >   explainForm (shape, r) = show shape ++ show r
 >   (shapes, formBits) = unzip combos
->   thd (_, _, c) = c
 
 Finally, print out all the solutions, separated by newlines.
 
-> main = putStrLn $ intercalate "\n" [show s | s <- solutions]
+> main = putStrLn $ intercalate "\n" [show f | f <- solutionForms]
