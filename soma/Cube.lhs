@@ -86,7 +86,7 @@ To compute the bit pattern for a form, string the characters for each of its row
 > asBits :: Form -> Word32
 > asBits f = sum [bit n | (n, x) <- zip [0..] (flatten f), x /= ' ']
 
-> fromBits shape bs = Form $ unflatten $ map (formChar . testBit bs) [0..26]
+> fromBits shape bs = Form $ unflatten [formChar (testBit bs n) | n <- [0..26]]
 >  where
 >   formChar False = ' '
 >   formChar True  = head (show shape)
@@ -106,7 +106,7 @@ As mentioned before, the plan of each shape describes the cells it occupies when
 >   formChar  _  = head (show shape)
 
 
-> data Axis = X | Y | Z deriving Show
+> data Axis = X | Y | Z deriving (Enum, Show)
 
 > newtype Translation = Translation (Int, Int, Int) deriving Show
 
