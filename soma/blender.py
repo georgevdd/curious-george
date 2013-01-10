@@ -2,14 +2,13 @@ import math
 import Blender
 from Blender import NMesh
 
-def foo():
-  meshes = eval(file('/Users/georgevdd/src/soma/shapes.txt').read())
+def ReadShapes():
+  meshes = eval(file('shapes.txt').read())
+  solutions = eval(file('pysolutions.txt').read())
 
-  NumberOfSides = 5
-  Radius = 1
+  forms = dict(solutions[0])
 
-  for (name, (verts, faces)) in meshes:
-
+  for i, (name, (verts, faces)) in enumerate(meshes):
     poly = NMesh.GetRaw()
     poly.name = name
 
@@ -23,9 +22,12 @@ def foo():
         f.v.append(poly.verts[vert_idx])
       poly.faces.append(f)
 
-    NMesh.PutRaw(poly)
+    euler, location = forms[name]
 
+    obj = NMesh.PutRaw(poly)
+    obj.setEuler(*euler)
+    obj.setLocation(*location)
   Blender.Redraw()
 
 if __name__ == '__main__':
-  foo()
+  ReadShapes()

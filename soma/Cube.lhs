@@ -7,12 +7,10 @@
 > import Data.Ord (comparing)
 > import Data.Word
 
-There are seven shapes. The names here are intended to suggest their forms where possible. The P and Q shapes don't really look like any letter. They are mirror images of each other, though.
+The shapes remain the same. The last one has been slightly renamed to avoid conflict with the axis of the same name.
 
 > data Shape = L | S | T | R | P | Q | Y'
 >   deriving (Enum, Show)
-
-Each shape has a plan, which describes the cells of the cube that it occupies if placed in the left back corner of the bottom layer of the cube. The plan describes each row of each layer of the cube in turn, up to the point where all the remaining rows are empty. So the L plan can stop after only two rows, but the Y plan needs to go as far as the first row of the second layer.
 
 > plan L = "XXX" ++
 >          "X  "
@@ -41,12 +39,8 @@ Each shape has a plan, which describes the cells of the cube that it occupies if
 >           "   " ++
 >           "X  "
 
-The terminology 'form' is introduced to mean an assignment of shapes to positions in the cube. A form could be represented in all sorts of ways - 27 bits, or a string of 27 characters, or an array of booleans, or something else. A three-dimensional list of characters is slightly ugly, in that it is quite possible to construct forms that have the wrong dimensions or meaningless contents. But it has the advantage of allowing lots of built-in list manipulation and display functions to be brought to bear.
-
 > newtype Form = Form [[[Char]]]
 > unform (Form x) = x
-
-It's useful to be able to compare and sort forms. Again, the choice of representation allows different encodings of the same form to seem unequal when they shouldn't, but that isn't a problem in practice.
 
 > instance Eq Form where
 >   (Form x) == (Form y) = x == y
@@ -56,15 +50,13 @@ It's useful to be able to compare and sort forms. Again, the choice of represent
 
 > withForm f = Form . f . unform
 
-An easily readable representation of a form is helpful for listing the solutions (as well as for playing with individual shapes' forms to show that things are working properly). Transposing the layers of rows allows the successive layers to be printed next to one another instead of above one another to make better use of screen space - an example of the list representation making things easier.
+The order in which rows of a form are displayed has been reversed, so that Y increases up the screen. With X increasing to the right, this means that each layer of the cube is displayed as if viewed from above (looking towards -Z) in a right-handed coordinate system, so it fits Blender naturally.
 
 > instance Show Form where
->   show (Form f) = unlines [showSlice s | s <- transpose f]
+>   show (Form f) = unlines [showSlice s | s <- reverse $ transpose f]
 >    where
 >     showSlice s = intercalate "  " [ showRow r | r <- s ]
 >     showRow r = "|" ++ r ++ "|"
-
-There is an empty form (corresponding to the partial solution where no shapes have been placed yet) and it's easy to see how to combine a form with another form and that (if the combination is valid) this will be a symmetric operation, so these forms naturally produce a Monoid.
 
 > instance Monoid Form where
 >   mempty = Form $ (replicate 3 . replicate 3 . replicate 3) ' '
@@ -75,8 +67,6 @@ There is an empty form (corresponding to the partial solution where no shapes ha
 >     superpose  a  ' ' =  a
 >     superpose ' '  b  =  b
 >     superpose  _   _  = '#'  -- This should never happen!
-
-To compute the bit pattern for a form, string the characters for each of its rows together and then convert each character in turn into a single bit.
 
 > inThrees = takeWhile (not . null) . unfoldr (Just . splitAt 3)
 
@@ -91,11 +81,7 @@ To compute the bit pattern for a form, string the characters for each of its row
 >   formChar False = ' '
 >   formChar True  = head (show shape)
 
-It'll be useful to know how many cells of the cube are occupied by a given form.
-
 > size f = length [x | x <- flatten f, x /= ' ']
-
-As mentioned before, the plan of each shape describes the cells it occupies when pushed into a particular corner of the cube. Here is a way to take this plan (which doesn't even describe the entire cube!) and turn it into a complete form suitable for combining with other forms.
 
 > defaultForm :: Shape -> Form
 > defaultForm shape = Form $ unflatten fullPlan
@@ -105,27 +91,26 @@ As mentioned before, the plan of each shape describes the cells it occupies when
 >   formChar ' ' = ' '
 >   formChar  _  = head (show shape)
 
+To be able to produce geometrical descriptions of the solutions, it is useful to record not only which shapes occupy which cell of the cube, but also how the shapes' forms are composed. As mentioned before, each form can be constructed from a translation, followed by a rotation about the X axis and then a rotation about either the Y or Z axes.
+
+These transformations could all be represented as matrices, but they're much easier to decipher if given a higher-level representation. This sequence of three transformations is referred to as a recipe.
 
 > data Axis = X | Y | Z deriving (Enum, Show)
-
+>
 > newtype Translation = Translation (Int, Int, Int) deriving Show
-
+>
 > type QuarterTurns = Int
 > data Rotation = Rotation Axis QuarterTurns deriving Show
-
+>
 > type Recipe = (Rotation, Rotation, Translation)
 
-These translation and rotation functions are a basis for enumerating all the forms that a shape can produce. As discussed earlier, each shape can be rotated to have its base against one of six faces of the cube ...
+Having given names to these transformations, they can now be listed in terms of those names instead of relying directly on function composition.
 
 > majors = [Rotation Y n | n <- [0..3]] ++
 >          [Rotation Z n | n <- [1, 3]]
-
-... and then rotated in the plane of that face in one of four ways ...
-
+>
 > minors = [Rotation X n | n <- [0..3]]
-
-... and then translated by up to two cells in each of three directions, but only so long as the shape still lies within the bounds of the cube.
-
+>
 > shifts shape = [t | t <- [Translation (x, y, z) |
 >                           x <- [0..2],
 >                           y <- [0..2],
@@ -134,12 +119,7 @@ These translation and rotation functions are a basis for enumerating all the for
 >   inBounds t = size (applyT t $ df) == size df
 >   df = defaultForm shape
 
-
-Translation functions take a form for a shape, and give a form for the same shape but shifted by one place along one of the three axes. Because the default forms of the shapes are always in one particular corner, these translation functions only need to cover shifts away from that one corner in order to be able to describe all the possible positions into which the shape can be translated.
-
-These functions implicitly fix the coordinate system of the form representation: a list of layers, each of which is a list of rows, each of which is a list of cells. This means, for example, that manipulating the outermost list of the structure corresponds to dealing with the cube layer-wise.
-
-Each of these functions inserts empty space on one face of the cube and chops one slice of cells off the opposite face of the cube. Again, the list representation makes them easy to define.
+Translations can now be in either direction; this might prove useful later.
 
 > shiftr def [a, b, _] = [def, a, b]
 > shiftl def [_, b, c] = [b, c, def]
@@ -154,61 +134,48 @@ Each of these functions inserts empty space on one face of the cube and chops on
 > tz  = withz shiftr
 > tz' = withz shiftl
 
-The rotation functions are slightly more complicated. For convenience, they are based on a 90-degree rotation being equivalent to a transposition followed by a reflection.
-
 > cw = transpose . reverse
 > ccw = reverse . transpose
 
-Rotation about the X axis leaves each row unchanged, so it's just the rotation applied to the outer two layers of lists.
+Transformations being defined in terms of Recipes instead of raw functions, a little glue is needed to describe how a recipe is applied to a Form.
 
-> rx = ccw
-
-To rotate about the Y axis, first transpose Z and Y to bring the Z and X axes next to each other, then apply the rotation to those Z and X axes, then transpose Y and Z to restore the coordinate system. Note that the direction of the applied rotation is reversed because transposition reverses the chirality of the representation.
-
-> ry = (transpose . map ccw . transpose)
-
-Finally, to rotate about Z, apply the desired rotation to each layer in turn.
-
-> rz = (map cw)
-
+Note also that the rotation about X has been changed from clockwise to counter-clockwise. These rotations now match Blender's default settings, which will avoid complication further down the line.
 
 > times 0 f = id
 > times n f = f . times (n-1) f
-
+>
 > applyR (Rotation a n) = withForm (times n (r a))
 >  where
->   r X = rx
->   r Y = ry
->   r Z = rz
-
+>   r X = cw
+>   r Y = transpose . map ccw . transpose
+>   r Z = map cw
+>
 > applyT (Translation (x, y, z)) = withForm (times x tx . times y ty . times z tz)
-
+>
 > applyRecipe (maj, min, shift) = applyR maj . applyR min . applyT shift
 
-So, all the forms that a shape can have can be listed by applying each combination of major rotation, minor rotation and shift to the default form for the shape. Some of these will be duplicates because of the symmetries of the shape. @nubBy@ is used to eliminate them, which is quite inefficient but this only needs to be computed once for each shape.
-
-As described so far, combining these lists of forms will give 48 times more solutions than are interesting, because every solution that is merely the rotation or reflection of another solution will also be found. An easy way to avoid that is to fix the orientation of one of the shapes - say, the first one. Then, there can't be any solutions that are simply rotations of another solution, because that one piece is always facing the same way. Similarly, omit any translations for it that give any forms which are mirror images. These considerations reduce the forms for the L shape to just four.
+The special case for the forms of L have been described a little more neatly.
 
 > allForms :: Shape -> [(Recipe, Form)]
-> allForms shape = nubBy ((==) `on` snd) $ [(t, applyRecipe t $ df) |
->                                           t <- transforms shape]
+> allForms shape = nubBy ((==) `on` snd) $ [(recipe, applyRecipe recipe df) |
+>                                           recipe <- recipes shape]
 >  where
 >   df = defaultForm shape
->   transforms L = [(Rotation Y 0, Rotation X 0, t) |
->                   t <- [s | s@(Translation (a, b, c)) <- shifts L, c /= 2]]
->   transforms shape =  [(maj, min, shift) |
->                        maj <- majors,
->                        min <- minors,
->                        shift <- shifts shape]
+>   recipes L = [(Rotation Y 0, Rotation X 0, t) |
+>                t <- [s | s@(Translation (a, b, c)) <- shifts L, c /= 2]]
+>   recipes shape =  [(maj, min, shift) |
+>                     maj <- majors,
+>                     min <- minors,
+>                     shift <- shifts shape]
 
-For each shape, the bit representations of all the forms it can have. Keeping this list on its own avoids computing a shape's forms and their bit representations afresh for each new partial solution in which the shape is being considered.
+The list of possible forms for each shape can now carry the recipe for constructing each form, as well as the resulting bit pattern.
 
 > combos :: [(Shape, [(Recipe, Word32)])]
 > combos = sortBy (comparing (length . snd))
 >                 [(shape, [(r, asBits f) | (r, f) <- allForms shape]) |
 >                  shape <- enumFrom L]
 
-> newtype Solution = Solution [(Shape, Recipe, Word32)]
+> newtype Solution = Solution [(Shape, Recipe, Word32)] deriving (Show)
 
 > solutions :: [Solution]
 > solutions = [s | (s, _) <- foldl addForm [(Solution [], 0)] combos] where
@@ -222,9 +189,9 @@ For each shape, the bit representations of all the forms it can have. Keeping th
 > expandSolution (Solution s) = foldl1 mappend [fromBits shape bitmap |
 >                                               (shape, _, bitmap) <- s]
 
+Finally, this makes it possible to explain what sequence of rotations and transformations was used to place each shape in position in a solution.
+
 > explainSolution (Solution s) = unlines [show (shape, recipe) |
 >                                         (shape, recipe, _) <- s]
-
-Finally, print out all the solutions, separated by newlines.
 
 > main = putStrLn $ intercalate "\n" [show (expandSolution s) | s <- solutions]
