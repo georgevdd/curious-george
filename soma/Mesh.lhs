@@ -1,7 +1,7 @@
 > module Mesh where
 
 > import Data.Map (fromList, keys, lookupIndex)
-> import Data.Maybe (fromJust)
+> import Data.Maybe (catMaybes, fromJust, listToMaybe)
 
 > import System.Process (runCommand)
 
@@ -29,8 +29,20 @@
 >                      isFace]
 >  where markFaces row = zipWith (/=) (' ':row) (row ++ [' '])
 
+> data Sign = Negative | Positive deriving (Show)
+> data CubeFace = CubeFace Sign Axis
+> instance Show CubeFace
+>  where show (CubeFace sign axis) = [head $ show axis, head $ show sign]
+> newtype FacePaint = FacePaint (Maybe CubeFace)
+> instance Show FacePaint
+>  where show (FacePaint (Just (CubeFace sign axis))) = [
+>         '\"', head $ show axis, head $ show sign, '\"']
+>        show (FacePaint Nothing) = "\"xx\""
 
-> axisFaces :: Axis -> Form -> [(Int, Int, Int)]
+> type Vert = (Int, Int, Int)
+
+> type Face = (Int, Int, Int)
+> axisFaces :: Axis -> Form -> [Face]
 > axisFaces axis = map (vApplyR $ r axis 3) .
 >                  faceCoords . unform .
 >                  applyR (r axis 1)
@@ -45,19 +57,30 @@
 >                              Z -> [(x-x', y+y', z) | (x', y') <- square]
 >  where square = [(0,0), (0,1), (1,1), (1,0)]
 
-> axisVerts :: Axis -> Form -> [[(Int, Int, Int)]]
-> axisVerts axis = map (faceVerts axis) . axisFaces axis
+> axisInfo :: Recipe -> Axis -> Form -> [([Vert], FacePaint)]
+> axisInfo recipe axis form = [(faceVerts axis face,
+>                               FacePaint $ paintFace $ map (vApplyRecipe recipe) $ faceVerts axis face) |
+>                              face <- axisFaces axis form]
 
-> allFaces f = concat [axisVerts axis f | axis <- enumFrom X]
+> paintFace verts = listToMaybe . catMaybes $
+>                   [paint vs axis | (vs, axis) <- [(xs, X), (ys, Y), (zs, Z)]]
+>  where
+>   (xs, ys, zs) = unzip3 verts
+>   paint vs axis = if all (== 0) vs then Just $ CubeFace Negative axis
+>                   else if all (==3) vs then Just $ CubeFace Positive axis
+>                   else Nothing
+
+
+> allFaces recipe f = concat [axisInfo recipe axis f | axis <- enumFrom X]
 
 > shareVerts faces = (keys vertMap,
->                     [[fromJust (lookupIndex v vertMap) | v <- face] |
->                      face <- faces])
->  where vertMap = fromList [(v, ()) | v <- concat faces]
+>                     [([fromJust (lookupIndex v vertMap) | v <- verts], x) |
+>                      (verts, x) <- faces])
+>  where vertMap = fromList [(v, ()) | v <- concat (map fst faces)]
 
-> mesh = shareVerts . allFaces . defaultForm
-> allMeshes = [(show shape, mesh shape) | shape <- enumFrom L]
-> writeMeshes = writeFile "shapes.txt" $ show allMeshes
+> mesh recipe = shareVerts . allFaces recipe . defaultForm
+> allMeshes (Solution fs) = [(show shape, mesh recipe shape) | (shape, recipe, _) <- fs]
+> writeMeshes = writeFile "shapes.txt" $ show $ allMeshes (head solutions)
 
 > pyRecipe recipe@(maj, min, shift) = ((roll, pitch, heading), location)
 >  where
@@ -87,25 +110,4 @@
 >   _ <- runCommand $ unwords ["blender", "-P", "blender.py"]
 >   return ()
 
-
-
-
-
--- > paintFace :: Axis -> (Int, Int, Int) -> Maybe CubeFace
--- > paintFace axis (0, _, _) = Just $ CubeFace Negative axis
--- > paintFace axis (3, _, _) = Just $ CubeFace Positive axis
--- > paintFace _ _ = Nothing
-
-
--- > yy (Solution fs) = [[(shape, vApplyRecipe recipe face) | face <- (axisFaces axis $ defaultForm shape)] |
--- >                      (shape, recipe, _) <- fs,
--- >                      axis <- enumFrom X]
-
-
-
-
--- > data Sign = Negative | Positive deriving (Show)
--- > data CubeFace = CubeFace Sign Axis deriving (Show)
-
--- > paintFaces :: Shape -> Recipe -> [a]
--- > paintFaces shape recipe = undefined
+> t = testMeshes
