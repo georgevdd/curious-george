@@ -21,9 +21,6 @@ def RawVertices(verts):
 
 def ReadShapes():
   meshes = eval(file('shapes.txt').read())
-  solutions = eval(file('pysolutions.txt').read())
-
-  forms = dict(solutions[0])
 
   materials = {}
   for (_, (_, faces)) in meshes:
@@ -55,13 +52,34 @@ def ReadShapes():
       f.material_index = mesh_materials.index(mat_name)
 
     poly.update()
-
-    euler, location = forms[name]
-
     obj = bpy.data.objects.new(name, poly)
-    obj.location = location
-    obj.rotation_euler = euler
     bpy.context.scene.objects.link(obj)
+
+def ReadSolutions():
+  solutions = eval(file('pysolutions.txt').read())
+  frames_per_solution = 25
+  
+  for i, solution in enumerate(solutions + solutions[:1]):
+    for name, (euler, location) in solution:
+      props = {'rotation_euler': euler, 'location': location }
+      
+      obj = bpy.data.objects[name]
+
+      anim_data = obj.animation_data or obj.animation_data_create()
+      action = anim_data.action
+      if action is None:
+        action = bpy.data.actions.new('%s_Action' % name)
+        for prop in 'location', 'rotation_euler':
+          for index in range(3):
+            action.fcurves.new(prop, index)
+        anim_data.action = action
+
+      for curve in action.fcurves:
+        value = props[curve.data_path][curve.array_index]
+        curve.keyframe_points.insert(i * frames_per_solution, value)
+
+  bpy.context.scene.frame_end = i * frames_per_solution
 
 if __name__ == '__main__':
   ReadShapes()
+  ReadSolutions()

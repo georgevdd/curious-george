@@ -102,7 +102,7 @@
 >                             (shape, recipe, _) <- fs]
 
 > writeSolutions = writeFile "pysolutions.txt" $
->                  show [pySolution solution | solution <- take 1 solutions]
+>                  show [pySolution solution | solution <- solutions]
 
 > testMeshes = do
 >   writeMeshes
