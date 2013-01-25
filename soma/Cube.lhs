@@ -1,3 +1,7 @@
+I've been at the cube again. Quite a lot has developed, but it's all been built upon some relatively small but important changes to the way that the original cube solving code models its work. Specifically, each solution now carries with it not only information about which shapes occupy which cells, but also information about how to translate and rotate each piece from its default position into its position within the solution.
+
+This is crucial for tasks such as exporting solution geometry to a 3D modelling package such as Blender ... of which more later. For the moment, here's a very boring rehash of the existing code, for completeness.
+
 > module Cube where
 
 > import Data.Bits
