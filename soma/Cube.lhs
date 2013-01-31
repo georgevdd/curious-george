@@ -68,13 +68,20 @@ The order in which rows of a form are displayed has been reversed, so that Y inc
 >     superpose ' '  b  =  b
 >     superpose  _   _  = '#'  -- This should never happen!
 
+The following splits a list into chunks, each of which (except maybe the last) has length 3. This would naturally generalise to chunks of length N if needed. This was previously defined within 'defaultForm' but is now more widely useful.
+
 > inThrees = takeWhile (not . null) . unfoldr (Just . splitAt 3)
 
 > flatten = concat . concat . unform
+
+As well as flattening a form into a list, the inverse operation will also be necessary. This takes a flat list and produces a list of triples of triples.
+
 > unflatten = inThrees . inThrees
 
 > asBits :: Form -> Word32
 > asBits f = sum [bit n | (n, x) <- zip [0..] (flatten f), x /= ' ']
+
+The opposite of 'asBits', this takes a shape and a bit sequence representing its form, and reconstructs the form. The ability to do this means that computations can take place purely in terms of bit sequences, and the results can still be displayed in a comprehensible manner by expanding them afterwards.
 
 > fromBits shape bs = Form $ unflatten [formChar (testBit bs n) | n <- [0..26]]
 >  where
