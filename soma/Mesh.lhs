@@ -84,7 +84,7 @@
 
 > pyRecipe recipe@(maj, min, shift) = ((roll, pitch, heading), location)
 >  where
->   location = vApplyRecipe recipe (0, 0, 0) 
+>   location = vApplyRecipe recipe (0, 0, 0)
 >   heading =
 >     case maj of Rotation X _ -> error "X should only appear as a minor axis"
 >                 Rotation Y _ -> 0

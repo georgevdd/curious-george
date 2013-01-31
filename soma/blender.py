@@ -57,12 +57,12 @@ def ReadShapes():
 
 def ReadSolutions():
   solutions = eval(file('pysolutions.txt').read())
-  frames_per_solution = 25
-  
+  frames_per_solution = 10
+
   for i, solution in enumerate(solutions + solutions[:1]):
     for name, (euler, location) in solution:
       props = {'rotation_euler': euler, 'location': location }
-      
+
       obj = bpy.data.objects[name]
 
       anim_data = obj.animation_data or obj.animation_data_create()
