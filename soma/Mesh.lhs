@@ -31,7 +31,7 @@
 > data CubeFace = CubeFace Sign Axis deriving (Eq, Ord)
 > instance Show CubeFace
 >  where show (CubeFace sign axis) = [head $ show axis, head $ show sign]
-> newtype FacePaint = FacePaint (Maybe CubeFace) deriving (Eq, Ord)
+> newtype FacePaint = FacePaint { cubeFace :: Maybe CubeFace } deriving (Eq, Ord)
 > instance Show FacePaint
 >  where show (FacePaint (Just (CubeFace sign axis))) = [
 >         '\"', head $ show axis, head $ show sign, '\"']
