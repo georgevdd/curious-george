@@ -1,7 +1,3 @@
-I've been at the cube again. Quite a lot has developed, but it's all been built upon some relatively small but important changes to the way that the original cube solving code models its work. Specifically, each solution now carries with it not only information about which shapes occupy which cells, but also information about how to translate and rotate each piece from its default position into its position within the solution.
-
-This is crucial for tasks such as exporting solution geometry to a 3D modelling package such as Blender ... of which more later. For the moment, here's a very boring rehash of the existing code, for completeness.
-
 > module Cube where
 
 > import Data.Bits
@@ -11,10 +7,10 @@ This is crucial for tasks such as exporting solution geometry to a 3D modelling 
 > import Data.Ord (comparing)
 > import Data.Word
 
-The shapes remain the same. The last one has been slightly renamed to avoid conflict with the axis of the same name.
+'Shape' now derives 'Eq' and 'Ord'.
 
 > data Shape = L | S | T | R | P | Q | Y'
->   deriving (Enum, Show)
+>   deriving (Enum, Eq, Ord, Show)
 
 > plan L = "XXX" ++
 >          "X  "
@@ -54,8 +50,6 @@ The shapes remain the same. The last one has been slightly renamed to avoid conf
 
 > withForm f = Form . f . unform
 
-The order in which rows of a form are displayed has been reversed, so that Y increases up the screen. With X increasing to the right, this means that each layer of the cube is displayed as if viewed from above (looking towards -Z) in a right-handed coordinate system, so it fits Blender naturally.
-
 > instance Show Form where
 >   show (Form f) = unlines [showSlice s | s <- reverse $ transpose f]
 >    where
@@ -72,20 +66,14 @@ The order in which rows of a form are displayed has been reversed, so that Y inc
 >     superpose ' '  b  =  b
 >     superpose  _   _  = '#'  -- This should never happen!
 
-The following splits a list into chunks, each of which (except maybe the last) has length 3. This would naturally generalise to chunks of length N if needed. This was previously defined within 'defaultForm' but is now more widely useful.
-
 > inThrees = takeWhile (not . null) . unfoldr (Just . splitAt 3)
 
 > flatten = concat . concat . unform
-
-As well as flattening a form into a list, the inverse operation will also be necessary. This takes a flat list and produces a list of triples of triples.
 
 > unflatten = inThrees . inThrees
 
 > asBits :: Form -> Word32
 > asBits f = sum [bit n | (n, x) <- zip [0..] (flatten f), x /= ' ']
-
-The opposite of 'asBits', this takes a shape and a bit sequence representing its form, and reconstructs the form. The ability to do this means that computations can take place purely in terms of bit sequences, and the results can still be displayed in a comprehensible manner by expanding them afterwards.
 
 > fromBits shape bs = Form $ unflatten [formChar (testBit bs n) | n <- [0..26]]
 >  where
@@ -102,11 +90,9 @@ The opposite of 'asBits', this takes a shape and a bit sequence representing its
 >   formChar ' ' = ' '
 >   formChar  _  = head (show shape)
 
-To be able to produce geometrical descriptions of the solutions, it is useful to record not only which shapes occupy which cell of the cube, but also how the shapes' forms are composed. As mentioned before, each form can be constructed from a translation, followed by a rotation about the X axis and then a rotation about either the Y or Z axes.
+'Axis' also now derives 'Eq' and 'Ord'.
 
-These transformations could all be represented as matrices, but they're much easier to decipher if given a higher-level representation. This sequence of three transformations is referred to as a recipe.
-
-> data Axis = X | Y | Z deriving (Enum, Show)
+> data Axis = X | Y | Z deriving (Enum, Eq, Ord, Show)
 >
 > newtype Translation = Translation (Int, Int, Int) deriving Show
 >
@@ -114,8 +100,6 @@ These transformations could all be represented as matrices, but they're much eas
 > data Rotation = Rotation Axis QuarterTurns deriving Show
 >
 > type Recipe = (Rotation, Rotation, Translation)
-
-Having given names to these transformations, they can now be listed in terms of those names instead of relying directly on function composition.
 
 > majors = [Rotation Y n | n <- [0..3]] ++
 >          [Rotation Z n | n <- [1, 3]]
@@ -129,8 +113,6 @@ Having given names to these transformations, they can now be listed in terms of 
 >  where
 >   inBounds t = size (applyT t $ df) == size df
 >   df = defaultForm shape
-
-Translations can now be in either direction; this might prove useful later.
 
 > shiftr def [a, b, _] = [def, a, b]
 > shiftl def [_, b, c] = [b, c, def]
@@ -148,10 +130,6 @@ Translations can now be in either direction; this might prove useful later.
 > cw = transpose . reverse
 > ccw = reverse . transpose
 
-Transformations being defined in terms of Recipes instead of raw functions, a little glue is needed to describe how a recipe is applied to a Form.
-
-Note also that the rotation about X has been changed from clockwise to counter-clockwise. These rotations now match Blender's default settings, which will avoid complication further down the line.
-
 > times 0 f = id
 > times n f = f . times (n-1) f
 >
@@ -165,8 +143,6 @@ Note also that the rotation about X has been changed from clockwise to counter-c
 >
 > applyRecipe (maj, min, shift) = applyR maj . applyR min . applyT shift
 
-The special case for the forms of L have been described a little more neatly.
-
 > allForms :: Shape -> [(Recipe, Form)]
 > allForms shape = nubBy ((==) `on` snd) $ [(recipe, applyRecipe recipe df) |
 >                                           recipe <- recipes shape]
@@ -178,8 +154,6 @@ The special case for the forms of L have been described a little more neatly.
 >                     maj <- majors,
 >                     min <- minors,
 >                     shift <- shifts shape]
-
-The list of possible forms for each shape can now carry the recipe for constructing each form, as well as the resulting bit pattern.
 
 > combos :: [(Shape, [(Recipe, Word32)])]
 > combos = sortBy (comparing (length . snd))
@@ -199,8 +173,6 @@ The list of possible forms for each shape can now carry the recipe for construct
 
 > expandSolution (Solution s) = foldl1 mappend [fromBits shape bitmap |
 >                                               (shape, _, bitmap) <- s]
-
-Finally, this makes it possible to explain what sequence of rotations and transformations was used to place each shape in position in a solution.
 
 > explainSolution (Solution s) = unlines [show (shape, recipe) |
 >                                         (shape, recipe, _) <- s]
