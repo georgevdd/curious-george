@@ -39,8 +39,7 @@
 >           "   " ++
 >           "X  "
 
-> newtype Form = Form [[[Char]]]
-> unform (Form x) = x
+> newtype Form = Form { unform :: [[[Char]]] }
 
 > instance Eq Form where
 >   (Form x) == (Form y) = x == y
@@ -143,33 +142,61 @@
 >
 > applyRecipe (maj, min, shift) = applyR maj . applyR min . applyT shift
 
-> allForms :: Shape -> [(Recipe, Form)]
-> allForms shape = nubBy ((==) `on` snd) $ [(recipe, applyRecipe recipe df) |
->                                           recipe <- recipes shape]
+This type describes which kinds of symmetry of the cube should be considered
+identical when computing solutions. The number of solutions modulo reflection
+and rotation is half the number of solutions modulo rotation only. For simply
+counting solutions, the first (smaller) number is appropriate, but for more
+involved computations such as considering which solutions' faces are disjoint
+it is necessary to consider mirror images separately.
+
+> data Symmetry = RotationOnly | RotationAndReflection
+
+The list of all forms of a shape now needs to depend on what symmetries are
+allowed.
+
+> allForms :: Shape -> Symmetry -> [(Recipe, Form)]
+> allForms shape symmetry = nubBy ((==) `on` snd) $
+>                           [(recipe, applyRecipe recipe df) |
+>                            recipe <- recipes shape]
 >  where
 >   df = defaultForm shape
->   recipes L = [(Rotation Y 0, Rotation X 0, t) |
->                t <- [s | s@(Translation (a, b, c)) <- shifts L, c /= 2]]
->   recipes shape =  [(maj, min, shift) |
->                     maj <- majors,
->                     min <- minors,
->                     shift <- shifts shape]
+>   recipes L = [r | r@(Rotation _ y,
+>                       Rotation _ x,
+>                       Translation (a, b, c)) <- allRecipes L,
+>                y == 0,
+>                x == 0,
+>                symmetry `allows` c]
+>   recipes shape = allRecipes shape
 
-> combos :: [(Shape, [(Recipe, Word32)])]
-> combos = sortBy (comparing (length . snd))
->                 [(shape, [(r, asBits f) | (r, f) <- allForms shape]) |
->                  shape <- enumFrom L]
+>   RotationOnly          `allows` c = True
+>   RotationAndReflection `allows` c = (c /= 2)
+
+>   allRecipes shape =  [(maj, min, shift) |
+>                        maj <- majors,
+>                        min <- minors,
+>                        shift <- shifts shape]
+
+> combos :: Symmetry -> [(Shape, [(Recipe, Word32)])]
+> combos symmetry = sortBy (comparing (length . snd))
+>                   [(shape, [(r, asBits f) |
+>                             (r, f) <- allForms shape symmetry]) |
+>                    shape <- enumFrom L]
 
 > newtype Solution = Solution [(Shape, Recipe, Word32)] deriving (Show)
 
-> solutions :: [Solution]
-> solutions = [s | (s, _) <- foldl addForm [(Solution [], 0)] combos] where
+> solutions' :: Symmetry -> [Solution]
+> solutions' symmetry = [s | (s, _) <- foldl addForm [(Solution [], 0)] $
+>                                      combos symmetry] where
 >   addForm partialSolutions (shape, formData) = [
 >       (Solution ((shape, recipe, bitmap):s), (pb .|. bitmap)) |
 >       (Solution s, pb) <- partialSolutions,
 >       (recipe, bitmap) <- formData,
 >       pb .&. bitmap == 0
 >       ]
+
+By default, only solutions distinct up to rotation and reflection are returned.
+
+> solutions = solutions' RotationAndReflection
 
 > expandSolution (Solution s) = foldl1 mappend [fromBits shape bitmap |
 >                                               (shape, _, bitmap) <- s]
