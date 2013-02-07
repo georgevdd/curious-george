@@ -118,6 +118,10 @@ The above function produces this histogram:
 
 So, 226 solutions have one unique face each. But two solutions have five unique faces each!
 
+Although the cube faces between them cover 87 different shape faces, there is some redundant information being encoded, because a shape has several coplanar faces, and when a cube face is assigned to a shape face, it must be assigned to all coplanar faces on the same shape. For example, when a cube face contains one of the L-shaped sides of shape L, it must contain all four of the shape faces comprised by that L-shaped side.
+
+Eliminating this redundant information could be done earlier (at the face painting stage), but here will do just as well. By doing this, the cube-face-to-shape-face mapping can be reduced to just 41 bits per cube face, which is good because it will fit in a native 64-bit word now.
+
 > bitGroups = sortBy (comparing head) $
 >             dupBits $ map bitRep interestingFaceCombos
 
@@ -138,6 +142,8 @@ So, 226 solutions have one unique face each. But two solutions have five unique 
 >                                    then foldl setBit w outBits
 >                                    else w
 >   bitUnmap = zip [0..] bitGroups
+
+The following working form now contains, for each interesting solution face, a deduplicated representation of the shape faces that it uses, and also an Integer describing which of the other 618 interesting solution faces cannot appear in conjunction with it.
 
 > compressedFaceCombos = [(s, cf, compressRep b, p,
 >                          conflicts (compressRep b)) |
