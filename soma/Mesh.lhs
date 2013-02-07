@@ -69,7 +69,6 @@
 >                               FacePaint $ paintFace $ map (vApplyRecipe recipe) $ faceVerts axis face) |
 >                              face <- axisFaces axis form]
 
-
 > allFaces recipe f = concat [axisInfo recipe axis f | axis <- enumFrom X]
 
 > shareVerts :: Ord k => [([k], t)] -> ([k], [([Int], t)])
@@ -79,9 +78,9 @@
 >  where vertMap = fromList [(v, ()) | v <- concat (map fst faces)]
 
 > mesh recipe = shareVerts . allFaces recipe . defaultForm
-> allMeshes (Solution fs) = [(show shape, mesh recipe shape) | (shape, recipe, _) <- fs]
+> allMeshes (Solution fs) = [(shape, mesh recipe shape) | (shape, recipe, _) <- fs]
 
-> writeMeshes = writeFile "shapes.txt" $ show $ allMeshes (head solutions)
+> writeMeshes = writeFile "shapes.txt" $ show [(show shape, m) | (shape, m) <- allMeshes (head solutions)]
 
 > pyRecipe recipe@(maj, min, shift) = ((roll, pitch, heading), location)
 >  where
