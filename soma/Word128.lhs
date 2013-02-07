@@ -11,10 +11,13 @@
 >          fromInteger' x n = WordPair (fromInteger (n `shiftR` bitSize x),
 >                                       fromInteger n)
 
+> instance Ord a => Ord (WordPair a)
+>  where (WordPair x) `compare` (WordPair y) = x `compare` y
+
 > pieceWise op (WordPair (h, l)) (WordPair (h', l')) = WordPair (h `op` h',
 >                                                                l `op` l')
 
-> instance (Bits a) => Bits (WordPair a) where
+> instance Bits a => Bits (WordPair a) where
 >   (.&.) = pieceWise (.&.)
 >   (.|.) = pieceWise (.|.)
 >   testBit (WordPair (h, l)) n = if n < bitSize l
