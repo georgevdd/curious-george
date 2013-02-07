@@ -44,8 +44,10 @@ This is a dumping ground for bits and pieces that might migrate into more dedica
 > dupBits xs = foldr refine [[0..bitSize (head xs) - 1]] xs where
 >   refine x = concatMap (groupSortBy $ testBit x)
 
-> countBits :: (Bits a) => a -> Int
-> countBits = length
+> -- | Data.Bits.popCount seems to hang on large Integers. This version doesn't.
+> popCount' :: Integer -> Int
+> popCount' 0 = 0
+> popCount' n = popCount (fromInteger n :: Word64) + popCount' (n `shiftR` 64)
 
 > -- | Enumerates the ways to choose n items from a list.
 > choose 0 _ = [[]]
