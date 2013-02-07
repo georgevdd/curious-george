@@ -77,20 +77,20 @@ This function takes an assignment of cube faces to shape faces, and splits it in
 
 Applying that splitting function to the face assignments of each solution in turn results in the following function. It produces a list of 6 * 480 = 2880 elements.
 
-> faceCombos :: [((Solution, Int), CubeFace, Word128, [(Shape, [FacePaint])])]
-> faceCombos = [((solution, n), cf, markFaces (isJust . cubeFace) fs, fs) |
+> faceInfos :: [((Solution, Int), CubeFace, Word128, [(Shape, [FacePaint])])]
+> faceInfos = [((solution, n), cf, markFaces (isJust . cubeFace) fs, fs) |
 >               (solution, n) <- zip (solutions' RotationOnly) [0..],
 >               (cf, fs) <- explodePainting (paintings solution)]
 > solutionIndex ((_, n), _, _, _) = n
 
 Of course, there's some chance that a cube face from one solution will cover exactly the same shape faces as a cube face from another solution (albeit probably with different orientations). Ideally, a set of cube faces would not contain any cube face that is also formed by a different solution.
 
-> distinctFaceCombos = nubBy ((==) `on` bitRep) faceCombos
+> distinctFaceInfos = nubBy ((==) `on` bitRep) faceInfos
 > bitRep (_, _, w, _) = w
 
 This reveals that there are only 1176 distinct cube faces. And even fewer will appear on only one solution. That's unsurprising in fact, because while symmetries of individual shapes are discounted, it's often the case that a solution will contain a subunit comprising two or more shapes, where the subunit has a symmetry. In such a solution, the subunit can be removed, transformed by its symmetry, and recombined, to give a new solution; any cube faces not affected by this will then be shared between the two solutions.
 
-> groupedFaces = groupSortBy bitRep faceCombos
+> groupedFaces = groupSortBy bitRep faceInfos
 > faceFreq = histogram groupSizes
 >  where
 >   groupSizes = map length groupedFaces
@@ -104,12 +104,12 @@ That is to say, there are 619 cube faces that can only be made by a single solut
 
 Here are the solution faces that appear only in a single solution:
 
-> interestingFaceCombos = concat [g | g <- groupedFaces, length g == 1]
+> interestingFaceInfos = concat [g | g <- groupedFaces, length g == 1]
 
 These can then be grouped by which solution they appear in:
 
 > interestingSolutionFaces = sortBy (flip $ comparing length) $
->                            groupSortBy solutionIndex interestingFaceCombos
+>                            groupSortBy solutionIndex interestingFaceInfos
 
 > interestingSolutionFreq = histogram $ map length interestingSolutionFaces
 
@@ -123,7 +123,7 @@ Although the cube faces between them cover 87 different shape faces, there is so
 Eliminating this redundant information could be done earlier (at the face painting stage), but here will do just as well. By doing this, the cube-face-to-shape-face mapping can be reduced to just 41 bits per cube face, which is good because it will fit in a native 64-bit word now.
 
 > bitGroups = sortBy (comparing head) $
->             dupBits $ map bitRep interestingFaceCombos
+>             dupBits $ map bitRep interestingFaceInfos
 
 > compressRep :: Word128 -> Word64
 > compressRep w = foldl (mapBit w) 0 bitMap
@@ -145,14 +145,32 @@ Eliminating this redundant information could be done earlier (at the face painti
 
 The following working form now contains, for each interesting solution face, a deduplicated representation of the shape faces that it uses, and also an Integer describing which of the other 618 interesting solution faces cannot appear in conjunction with it.
 
-> compressedFaceCombos = [(s, cf, compressRep b, p,
+> compressedFaceInfos = [(n, s, cf, compressRep b, p,
 >                          conflicts (compressRep b)) |
->                         (s, cf, b, p) <- interestingFaceCombos]
+>                         (n, (s, cf, b, p)) <- zip [0..] interestingFaceInfos]
 >  where
 >   conflicts :: Word64 -> Integer
 >   conflicts b = foldl setBit 0
 >                       [n |
 >                        (n, b') <- zip [0..]
 >                                       [compressRep $ bitRep fc |
->                                        fc <- interestingFaceCombos],
+>                                        fc <- interestingFaceInfos],
 >                        b .&. b' /= 0]
+
+> search partialSolution _ [] = [partialSolution]
+> search partialSolution
+>        impossibleInfos
+>        (info@(n,_,_,b,_,conflicts):infos) =
+>            if (testBit impossibleInfos n)
+>            then search partialSolution
+>                        impossibleInfos
+>                        infos
+>            else search (info:partialSolution)
+>                        (impossibleInfos .|. conflicts)
+>                        infos
+>                 ++
+>                 search partialSolution
+>                        impossibleInfos
+>                        infos
+
+> run = search [] (0::Integer) compressedFaceInfos
