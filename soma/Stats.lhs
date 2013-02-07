@@ -1,6 +1,5 @@
 > module Stats where
 
-> import Cube
 > import Data.Bits
 > import Data.Function
 > import Data.List
@@ -9,7 +8,11 @@
 > import Data.Maybe
 > import Data.Monoid
 > import Data.Ord
+> import Data.Word
+
+> import Cube
 > import Mesh
+> import Misc
 > import Word128
 
 This counts how many squares cover the surface of a shape in the Soma cube.
@@ -31,7 +34,7 @@ The following defines an offset into a bitfield at which to find the bits for ea
 > shapeBitOffset = Map.fromList $ foldl reserveBits [] (enumFrom L)
 >  where
 >   reserveBits [] shape = [(shape, 0)]
->   reserveBits os@((_, o):_) shape = (shape, o + countFaces shape):os
+>   reserveBits os@((shape', o):_) shape = (shape, o + countFaces shape'):os
 
 Given a predicate that selects faces, the corresponding subset of faces can be represented as 128 bits.
 
@@ -87,9 +90,7 @@ Of course, there's some chance that a cube face from one solution will cover exa
 
 This reveals that there are only 1176 distinct cube faces. And even fewer will appear on only one solution. That's unsurprising in fact, because while symmetries of individual shapes are discounted, it's often the case that a solution will contain a subunit comprising two or more shapes, where the subunit has a symmetry. In such a solution, the subunit can be removed, transformed by its symmetry, and recombined, to give a new solution; any cube faces not affected by this will then be shared between the two solutions.
 
-> histogram xs = [(value, length bucket) | bucket@(value:_) <- (group . sort) xs]
-
-> groupedFaces = groupBy ((==) `on` bitRep) $ sortBy (comparing bitRep) faceCombos
+> groupedFaces = groupSortBy bitRep faceCombos
 > faceFreq = histogram groupSizes
 >  where
 >   groupSizes = map length groupedFaces
@@ -108,8 +109,7 @@ Here are the solution faces that appear only in a single solution:
 These can then be grouped by which solution they appear in:
 
 > interestingSolutionFaces = sortBy (flip $ comparing length) $
->                            groupBy ((==) `on` solutionIndex) $
->                            sortBy (comparing solutionIndex) interestingFaceCombos
+>                            groupSortBy solutionIndex interestingFaceCombos
 
 > interestingSolutionFreq = histogram $ map length interestingSolutionFaces
 
@@ -118,6 +118,35 @@ The above function produces this histogram:
 
 So, 226 solutions have one unique face each. But two solutions have five unique faces each!
 
-> choose 0 _ = [[]]
-> choose n [] = []
-> choose n (x:xs) = [x:xs' | xs' <- choose (n-1) xs] ++ choose n xs
+> bitGroups = sortBy (comparing head) $
+>             dupBits $ map bitRep interestingFaceCombos
+
+> compressRep :: Word128 -> Word64
+> compressRep w = foldl (mapBit w) 0 bitMap
+>  where
+>   mapBit :: (Bits a, Bits b) => a -> b -> (Int, Int) -> b
+>   mapBit w w' (outBit, inBit) = if (testBit w inBit)
+>                                 then setBit w' outBit
+>                                 else w'
+>   bitMap = zip [0..] (map head bitGroups)
+
+> uncompressRep :: Word64 -> Word128
+> uncompressRep w' = foldl (unmapBit w') 0 bitUnmap
+>  where
+>   unmapBit :: (Bits a, Bits b) => a -> b -> (Int, [Int]) -> b
+>   unmapBit w' w (inBit, outBits) = if (testBit w' inBit)
+>                                    then foldl setBit w outBits
+>                                    else w
+>   bitUnmap = zip [0..] bitGroups
+
+> compressedFaceCombos = [(s, cf, compressRep b, p,
+>                          conflicts (compressRep b)) |
+>                         (s, cf, b, p) <- interestingFaceCombos]
+>  where
+>   conflicts :: Word64 -> Integer
+>   conflicts b = foldl setBit 0
+>                       [n |
+>                        (n, b') <- zip [0..]
+>                                       [compressRep $ bitRep fc |
+>                                        fc <- interestingFaceCombos],
+>                        b .&. b' /= 0]
