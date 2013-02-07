@@ -26,7 +26,8 @@
 >   setBit (WordPair (h, l)) n = if n < bitSize l
 >                                then WordPair (h, setBit l n)
 >                                else WordPair (setBit h (n - bitSize l), l)
->   bitSize (WordPair (x, y)) = bitSize x + bitSize y 
+>   bitSize (WordPair (h, l)) = bitSize h + bitSize l
+>   popCount (WordPair (h, l)) = popCount h + popCount l
 
 > showBinary :: Bits a => a -> String
 > showBinary x = [if testBit x n then '1' else '0' | n <- [w-1,w-2..0]]
