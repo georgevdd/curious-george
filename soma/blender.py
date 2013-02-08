@@ -80,6 +80,31 @@ def ReadSolutions():
 
   bpy.context.scene.frame_end = i * frames_per_solution
 
+def ReadCameraKeyframes():
+  cam_keys = eval(file('camera_keys.txt').read())
+  cam = bpy.data.objects['Camera']
+  cam.animation_data_clear()
+
+  anim_data = cam.animation_data_create()
+  action = anim_data.action
+  if action is None:
+    action = bpy.data.actions.new('Camera_Action')
+    for prop in 'location':
+      for index in range(3):
+        pass #action.fcurves.new(prop, index)
+    anim_data.action = action
+
+  for i, k in enumerate(cam_keys + cam_keys[:1]):
+    sign = {'P':1,'N':0}[k[1]]
+    pos = {'X':[sign,0,0],'Y':[0,sign,0],'Z':[0,0,sign]}[k[0]]
+
+    for curve in action.fcurves:
+      curve.keyframe_points.insert(i * frames_per_solution,
+                                   pos[curve.array_index])
+
 if __name__ == '__main__':
   ReadShapes()
   ReadSolutions()
+  ReadCameraKeyframes()
+  bpy.ops.wm.save_as_mainfile(filepath="tenfold.blend", check_existing=False)
+  bpy.ops.wm.quit_blender()

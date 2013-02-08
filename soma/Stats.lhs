@@ -195,10 +195,14 @@ The following working form now contains, for each interesting solution face, a d
 > comboMeshes cfToSolution shapeFaces = [(shape, mesh' faceInfos shape) |
 >                                        (shape, faceInfos) <- shapeFaces]
 
+> writeCameraKeyframes :: [CubeFace] -> IO ()
+> writeCameraKeyframes = writeFile "camera_keys.txt" . show . map show
+
 > testMeshes = do
 >   let (cfToSolution, shapeFaces) = implodeCombo $ chosenCombo
 >   writeMeshes $ comboMeshes cfToSolution shapeFaces
 >   writeSolutions $ map snd cfToSolution
+>   writeCameraKeyframes [axis | (axis, _) <- fst $ implodeCombo chosenCombo]
 >   importIntoBlender
 
 > implodePainting :: [[(Shape, [FacePaint])]]
