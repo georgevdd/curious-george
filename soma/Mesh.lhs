@@ -66,7 +66,8 @@
 
 > axisInfo :: Recipe -> Axis -> Form -> [([Vert], FacePaint)]
 > axisInfo recipe axis form = [(faceVerts axis face,
->                               FacePaint $ paintFace $ map (vApplyRecipe recipe) $ faceVerts axis face) |
+>                               FacePaint $ paintFace $ map (vApplyRecipe recipe)
+>                               $ faceVerts axis face) |
 >                              face <- axisFaces axis form]
 
 > allFaces recipe f = concat [axisInfo recipe axis f | axis <- enumFrom X]
@@ -80,7 +81,9 @@
 > mesh recipe = shareVerts . allFaces recipe . defaultForm
 > allMeshes (Solution fs) = [(shape, mesh recipe shape) | (shape, recipe, _) <- fs]
 
-> writeMeshes = writeFile "shapes.txt" $ show [(show shape, m) | (shape, m) <- allMeshes (head solutions)]
+> writeMeshes :: [(Shape, ([Vert], [([Int], FacePaint)]))] -> IO ()
+> writeMeshes ms = writeFile "shapes.txt" $ show [(show shape, m) |
+>                                                 (shape, m) <- ms]
 
 > pyRecipe recipe@(maj, min, shift) = ((roll, pitch, heading), location)
 >  where
@@ -101,15 +104,15 @@
 > pySolution (Solution fs) = [(show shape, pyRecipe recipe) |
 >                             (shape, recipe, _) <- fs]
 
-> writeSolutions = writeFile "pysolutions.txt" $
->                  show [pySolution solution | solution <- solutions]
+> writeSolutions ss = writeFile "pysolutions.txt" $
+>                     show [pySolution solution | solution <- ss]
 
 > importIntoBlender = do
 >   _ <- runCommand $ unwords ["blender", "-P", "blender.py"]
 >   return ()
 
 > testMeshes = do
->   writeMeshes
->   writeSolutions
+>   writeMeshes $ allMeshes (head solutions)
+>   writeSolutions solutions
 >   importIntoBlender
 >   return ()

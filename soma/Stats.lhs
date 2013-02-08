@@ -13,7 +13,7 @@
 > import Data.Word
 
 > import Cube hiding (main)
-> import Mesh
+> import Mesh hiding (testMeshes)
 > import Misc
 > import Word128
 
@@ -184,9 +184,22 @@ The following working form now contains, for each interesting solution face, a d
 > --Thanks to Tomek Czaka for this set.
 > chosenCombo = map (compressedFaceInfos!!) [1, 17, 88, 141, 234, 337, 350, 466, 494, 576]
 
-> useCombo combo = (solutions, implodePainting ps)
->  where (solutions, ps) = unzip [(solution, painting) |
->                                 (_, (solution, _), _, _, painting, _) <- combo]
+> mesh' paints shape = (verts, [(vis, paint) |
+>                               ((vis, _), paint) <- zip faces paints])
+>  where (verts, faces) = mesh undefined shape
+
+> implodeCombo combo = (cfToSolution, implodePainting ps)
+>  where (cfToSolution, ps) = unzip [((cf, solution), p) |
+>                                    (_, (solution, _), cf, _, p, _) <- combo]
+
+> comboMeshes cfToSolution shapeFaces = [(shape, mesh' faceInfos shape) |
+>                                        (shape, faceInfos) <- shapeFaces]
+
+> testMeshes = do
+>   let (cfToSolution, shapeFaces) = implodeCombo $ chosenCombo
+>   writeMeshes $ comboMeshes cfToSolution shapeFaces
+>   writeSolutions $ map snd cfToSolution
+>   importIntoBlender
 
 > implodePainting :: [[(Shape, [FacePaint])]]
 >                 -> [(Shape, [FacePaint])]
