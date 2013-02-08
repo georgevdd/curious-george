@@ -1,8 +1,11 @@
 import math
+import mathutils as mu
 import bpy
 import io
 
 file = io.open
+
+frames_per_solution = 10
 
 # RGB components are in the range [0,1].
 #
@@ -28,7 +31,11 @@ def ReadShapes():
       if mat_name not in materials:
         n = len(materials)
         material = bpy.data.materials.new(mat_name)
-        material.diffuse_color = [(n & (1<<j)) and 1.0 or 0.3 for j in range(3)]
+        col = mu.Color((1,1,1))
+        col.s = 0.7
+        col.h = n / 11.0
+        col.v = (n % 2) and 0.3 or 1.0
+        material.diffuse_color = col
         materials[mat_name] = material
 
   for i, (name, (verts, faces)) in enumerate(meshes):
@@ -57,7 +64,6 @@ def ReadShapes():
 
 def ReadSolutions():
   solutions = eval(file('pysolutions.txt').read())
-  frames_per_solution = 10
 
   for i, solution in enumerate(solutions + solutions[:1]):
     for name, (euler, location) in solution:
@@ -88,19 +94,25 @@ def ReadCameraKeyframes():
   anim_data = cam.animation_data_create()
   action = anim_data.action
   if action is None:
-    action = bpy.data.actions.new('Camera_Action')
-    for prop in 'location':
+    action = (bpy.data.actions.get('Camera_Action') or
+              bpy.data.actions.new('Camera_Action'))
+    while (action.fcurves):
+      action.fcurves.remove(action.fcurves[0])
+    for prop in ['location', 'rotation_euler']:
       for index in range(3):
-        pass #action.fcurves.new(prop, index)
+        action.fcurves.new(prop, index)
     anim_data.action = action
 
   for i, k in enumerate(cam_keys + cam_keys[:1]):
-    sign = {'P':1,'N':0}[k[1]]
+    sign = {'P':-1,'N':1}[k[1]]
     pos = {'X':[sign,0,0],'Y':[0,sign,0],'Z':[0,0,sign]}[k[0]]
+    rot = mu.Vector(pos).to_track_quat('Z','Y').to_euler()
+
+    props = {'rotation_euler': rot, 'location': [0,0,0] }
 
     for curve in action.fcurves:
-      curve.keyframe_points.insert(i * frames_per_solution,
-                                   pos[curve.array_index])
+      value = props[curve.data_path][curve.array_index]
+      curve.keyframe_points.insert(i * frames_per_solution, value)
 
 if __name__ == '__main__':
   ReadShapes()
