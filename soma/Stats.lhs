@@ -1,5 +1,7 @@
 > module Stats where
 
+> import Control.Monad
+> import Control.Parallel
 > import Data.Bits
 > import Data.Function
 > import Data.List
@@ -10,7 +12,7 @@
 > import Data.Ord
 > import Data.Word
 
-> import Cube
+> import Cube hiding (main)
 > import Mesh
 > import Misc
 > import Word128
@@ -58,7 +60,7 @@ Now there's enough information to work out how many of the shapes' faces are eve
 >   everExternalBits = foldr1 (.|.) [markFaces (isJust . cubeFace) $
 >                                    paintings s | s <- solutions' RotationOnly]
 
-This reveals that 87 of the 122 faces are ever on the outside. Since each face of a solution requires 9 faces of a shape, that means there is a theoretical limit of 87/9 = 9 disjoint solution faces that can simultaneously be assigned to the faces of the pieces.
+This reveals that 90 of the 122 faces are ever on the outside. Since each face of a solution requires 9 faces of a shape, that means there is a theoretical limit of 90/9 = 10 disjoint solution faces that can simultaneously be assigned to the faces of the pieces.
 
 Obviously, six disjoint solution faces can be simultaneously assigned to the faces of the pieces, just by choosing all the solution faces from the same solution. But that's not very interesting. The interesting problem is to have as many solution faces represented as possible, but where each one comes from a different solution.
 
@@ -118,9 +120,9 @@ The above function produces this histogram:
 
 So, 226 solutions have one unique face each. But two solutions have five unique faces each!
 
-Although the cube faces between them cover 87 different shape faces, there is some redundant information being encoded, because a shape has several coplanar faces, and when a cube face is assigned to a shape face, it must be assigned to all coplanar faces on the same shape. For example, when a cube face contains one of the L-shaped sides of shape L, it must contain all four of the shape faces comprised by that L-shaped side.
+Although the cube faces between them cover 90 different shape faces, there is some redundant information being encoded, because a shape has several coplanar faces, and when a cube face is assigned to a shape face, it must be assigned to all coplanar faces on the same shape. For example, when a cube face contains one of the L-shaped sides of shape L, it must contain all four of the shape faces comprised by that L-shaped side.
 
-Eliminating this redundant information could be done earlier (at the face painting stage), but here will do just as well. By doing this, the cube-face-to-shape-face mapping can be reduced to just 41 bits per cube face, which is good because it will fit in a native 64-bit word now.
+Eliminating this redundant information could be done earlier (at the face painting stage), but here will do just as well. By doing this, the cube-face-to-shape-face mapping can be reduced to just 42 bits per cube face, which is good because it will fit in a native 64-bit word now.
 
 > bitGroups = sortBy (comparing head) $
 >             dupBits $ map bitRep interestingFaceInfos
@@ -157,20 +159,42 @@ The following working form now contains, for each interesting solution face, a d
 >                                        fc <- interestingFaceInfos],
 >                        b .&. b' /= 0]
 
-> search partialSolution _ [] = [partialSolution]
+> targetComboSize = totalEverExternalFaces `div` 9
+
+> search partialSolution _ [] = if length partialSolution == targetComboSize
+>                               then [partialSolution]
+>                               else []
 > search partialSolution
 >        impossibleInfos
 >        (info@(n,_,_,b,_,conflicts):infos) =
 >            if (testBit impossibleInfos n)
->            then search partialSolution
->                        impossibleInfos
->                        infos
->            else search (info:partialSolution)
->                        (impossibleInfos .|. conflicts)
->                        infos
->                 ++
->                 search partialSolution
->                        impossibleInfos
->                        infos
+>            then withoutThisOne
+>            else par withoutThisOne (pseq withThisOne (withoutThisOne ++ withThisOne))
+>  where
+>    withoutThisOne = search partialSolution
+>                            impossibleInfos
+>                            infos
+>    withThisOne = search (info:partialSolution)
+>                         (impossibleInfos .|. conflicts)
+>                         infos
 
 > run = search [] (0::Integer) compressedFaceInfos
+
+> --chosenCombo = head run
+> --Thanks to Tomek Czaka for this set.
+> chosenCombo = map (compressedFaceInfos!!) [1, 17, 88, 141, 234, 337, 350, 466, 494, 576]
+
+> useCombo combo = (solutions, implodePainting ps)
+>  where (solutions, ps) = unzip [(solution, painting) |
+>                                 (_, (solution, _), _, _, painting, _) <- combo]
+
+> implodePainting :: [[(Shape, [FacePaint])]]
+>                 -> [(Shape, [FacePaint])]
+> implodePainting ps = [(shape, superpose paintGroups) |
+>                       (shape, paintGroups) <- [head $ groupKey grp |
+>                                                grp <- groupSortBy fst .
+>                                                       concat $ ps]]
+>  where
+>   superpose = map (FacePaint . msum . map cubeFace) . transpose
+
+> main = print chosenCombo
