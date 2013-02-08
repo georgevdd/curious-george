@@ -104,8 +104,12 @@
 > writeSolutions = writeFile "pysolutions.txt" $
 >                  show [pySolution solution | solution <- solutions]
 
+> importIntoBlender = do
+>   _ <- runCommand $ unwords ["blender", "-P", "blender.py"]
+>   return ()
+
 > testMeshes = do
 >   writeMeshes
 >   writeSolutions
->   _ <- runCommand $ unwords ["blender", "-P", "blender.py"]
+>   importIntoBlender
 >   return ()
