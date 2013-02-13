@@ -38,9 +38,6 @@
 >   bitSize (WordPair (h, l)) = bitSize h + bitSize l
 #ifdef HAVE_POPCOUNT
 >   popCount (WordPair (h, l)) = popCount h + popCount l
-<<<<<<< HEAD
-=======
 #endif  // HAVE_POPCOUNT
->>>>>>> ae2f5f6509167ceae3cf841a7970606a77887f77
 
 > type Word128 = WordPair Word64
