@@ -1,6 +1,11 @@
+> {-# LANGUAGE CPP #-}
 > module Word128 where
 > import Data.Bits
 > import Data.Word
+
+#ifndef HAVE_POPCOUNT
+> import Misc (popCount)
+#endif
 
 > newtype WordPair a = WordPair (a, a) deriving (Eq, Show)
 
@@ -27,10 +32,8 @@
 >                                then WordPair (h, setBit l n)
 >                                else WordPair (setBit h (n - bitSize l), l)
 >   bitSize (WordPair (h, l)) = bitSize h + bitSize l
+#ifdef HAVE_POPCOUNT
 >   popCount (WordPair (h, l)) = popCount h + popCount l
-
-> showBinary :: Bits a => a -> String
-> showBinary x = [if testBit x n then '1' else '0' | n <- [w-1,w-2..0]]
->  where w = bitSize x
+#endif  // HAVE_POPCOUNT
 
 > type Word128 = WordPair Word64

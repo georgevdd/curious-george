@@ -1,3 +1,5 @@
+> {-# LANGUAGE CPP #-}
+
 This is a dumping ground for bits and pieces that might migrate into more dedicated modules once they have more companions.
 
 > module Misc where
@@ -7,6 +9,15 @@ This is a dumping ground for bits and pieces that might migrate into more dedica
 > import Data.Function
 > import Data.Ord
 > import Data.Word
+
+> showBinary :: Bits a => a -> String
+> showBinary x = [if testBit x n then '1' else '0' | n <- [w-1,w-2..0]]
+>  where w = bitSize x
+
+#ifndef HAVE_POPCOUNT
+> popCount :: Bits a => a -> Int
+> popCount = length . filter (=='1') . showBinary
+#endif
 
 > -- | For example: histogram "aaabbcaa" == [('a',5),('b',2),('c',1)]
 > histogram :: Ord a => [a] -> [(a, Int)]

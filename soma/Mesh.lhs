@@ -21,8 +21,8 @@
 >                  (.* fromProjective r) .
 >                  (extendWith 1 :: Vec3 -> Vec4)
 
-> faceCoords :: Form -> [Face]
-> faceCoords form = [Vec3 x y z |
+> xAxisFaces :: Form -> [Face]
+> xAxisFaces form = [Vec3 x y z |
 >                    (z, layer)   <- zip [0..] (unform form),
 >                    (y, row)     <- zip [0..] layer,
 >                    (x, isFace)  <- zip [0..] (markFaces row),
@@ -41,7 +41,7 @@
 
 > convXaxis :: Float -> Axis -> Recipe
 > convXaxis _ X = one
-> convXaxis n Y = exactRotation (rotMatrixZ $ n*pi/2)
+> convXaxis n Y = exactRotation (rotMatrixZ $ -n*pi/2)
 > convXaxis n Z = exactRotation (rotMatrixY $ n*pi/2)
 > toXaxis Positive = convXaxis 1
 > toXaxis Negative = (.*. exactRotation (rotMatrixY pi)) . toXaxis Positive
@@ -50,12 +50,12 @@
 
 > axisFaces :: Axis -> Form -> [Face]
 > axisFaces axis = map (vApplyRecipe $ fromXaxis Positive axis) .
->                  faceCoords .
+>                  xAxisFaces .
 >                  applyRecipe (toXaxis Positive axis)
 
 > faceVerts axis (Vec3 x y z) = case axis of
 >                               X -> [Vec3 x (y+y') (z+z') | (y', z') <- square]
->                               Y -> [Vec3 (x+x') y (z+z') | (x', z') <- square]
+>                               Y -> [Vec3 (x-x') y (z+z') | (x', z') <- square]
 >                               Z -> [Vec3 (x-x') (y+y') z | (x', y') <- square]
 >  where square = [(0,0), (0,1), (1,1), (1,0)]
 
@@ -97,7 +97,7 @@
 >  where
 >   tfm = [[mat j i | j <- [0..2]] | i <- [0..2]]
 >   mat i j = idx j $ idx i $ fromProjective recipe
->   idx :: HasCoordinates v e => Int -> (v -> e)
+>   idx :: HasCoordinates v e => Int -> v -> e
 >   idx = ([_1, _2, _3, _4]!!)
 
 >   origin  = vApplyRecipe recipe zero
