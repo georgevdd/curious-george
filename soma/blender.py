@@ -66,8 +66,9 @@ def ReadSolutions():
   solutions = eval(file('pysolutions.txt').read())
 
   for i, solution in enumerate(solutions + solutions[:1]):
-    for name, (euler, location) in solution:
-      props = {'rotation_euler': euler, 'location': location }
+    for name, (rot, location) in solution:
+      props = {'rotation_euler': mu.Matrix(rot).to_euler(),
+               'location': location }
 
       obj = bpy.data.objects[name]
 

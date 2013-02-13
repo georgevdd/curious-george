@@ -3,11 +3,11 @@
 > import Data.Bits
 > import Data.Function (on)
 > import Data.List (intercalate, nubBy, sortBy, transpose, unfoldr)
+> import qualified Data.Map as Map
 > import Data.Monoid
 > import Data.Ord (comparing)
+> import Data.Vect hiding (transpose)
 > import Data.Word
-
-'Shape' now derives 'Eq' and 'Ord'.
 
 > data Shape = L | S | T | R | P | Q | Y'
 >   deriving (Enum, Eq, Ord, Show)
@@ -89,70 +89,46 @@
 >   formChar ' ' = ' '
 >   formChar  _  = head (show shape)
 
-'Axis' also now derives 'Eq' and 'Ord'.
-
 > data Axis = X | Y | Z deriving (Enum, Eq, Ord, Show)
 >
-> newtype Translation = Translation (Int, Int, Int) deriving Show
->
-> type QuarterTurns = Int
-> data Rotation = Rotation Axis QuarterTurns deriving Show
->
-> type Recipe = (Rotation, Rotation, Translation)
+> type Recipe = Proj4
 
-> majors = [Rotation Y n | n <- [0..3]] ++
->          [Rotation Z n | n <- [1, 3]]
+> withOffset :: Vec3 -> Proj4 -> Proj4
+> withOffset o m = translation o .*. m .*. translation (neg o)
+
+The rotation transformations should always map integers coordinates to integer coordinates, but small errors in the underlying trigonometry emerge. This functions turns a rotation matrix into a corresponding projection matrix containing only integral values, and then transforms it to rotate about the centre of the cube.
+
+> exactRotation = withOffset (zero &- Vec3 1.5 1.5 1.5) .
+>                 linear . mapVec (fromIntegral . round)
+
+> majors = map exactRotation ([rotMatrixY (n * pi/2) | n <- [0..3]] ++
+>                             [rotMatrixZ (n * pi/2) | n <- [1, 3]])
 >
-> minors = [Rotation X n | n <- [0..3]]
+> minors = map exactRotation [rotMatrixX (n * pi/2) | n <- [0..3]]
 >
-> shifts shape = [t | t <- [Translation (x, y, z) |
+> shifts shape = [t | t <- [translation (Vec3 x y z) |
 >                           x <- [0..2],
 >                           y <- [0..2],
 >                           z <- [0..2]], inBounds t]
 >  where
->   inBounds t = size (applyT t $ df) == size df
+>   inBounds t = size (applyRecipe t $ df) == size df
 >   df = defaultForm shape
 
-> shiftr def [a, b, _] = [def, a, b]
-> shiftl def [_, b, c] = [b, c, def]
+This implementation of applyRecipe avoids inverting the recipe's transformation matrix. Instead, it builds a table describing which coordinates ended up holding which source cells, then samples the resulting Form by querying that table. It's not pretty, but it works. The offset by 0.5 means rotations map cell centres (indexed by [0..2]) to cell centres, instead of mapping cell corners (indexed by [0..3]) to cell corners.
 
-> withx op = (map . map) (op ' ')
-> withy op = map (op "   ")
-> withz op = op (replicate 3 "   ")
-> tx  = withx shiftr
-> tx' = withx shiftl
-> ty  = withy shiftr
-> ty' = withy shiftl
-> tz  = withz shiftr
-> tz' = withz shiftl
-
-> cw = transpose . reverse
-> ccw = reverse . transpose
-
-> times 0 f = id
-> times n f = f . times (n-1) f
->
-> applyR (Rotation a n) = withForm (times n (r a))
->  where
->   r X = cw
->   r Y = transpose . map ccw . transpose
->   r Z = map cw
->
-> applyT (Translation (x, y, z)) = withForm (times x tx . times y ty . times z tz)
->
-> applyRecipe (maj, min, shift) = applyR maj . applyR min . applyT shift
-
-This type describes which kinds of symmetry of the cube should be considered
-identical when computing solutions. The number of solutions modulo reflection
-and rotation is half the number of solutions modulo rotation only. For simply
-counting solutions, the first (smaller) number is appropriate, but for more
-involved computations such as considering which solutions' faces are disjoint
-it is necessary to consider mirror images separately.
+> applyRecipe r (Form layers) = Form [[[Map.findWithDefault ' ' (x, y, z) cells |
+>                                       x <- [0..2]] |
+>                                      y <- [0..2]] |
+>                                     z <- [0..2]]
+>  where cells = Map.fromList [((round x, round y, round z), c) |
+>                              ((Vec4 x y z _), c) <- inverse]
+>        inverse = [(Vec4 x y z 1 .* r', cell) |
+>                   (z, layer) <- zip [0..2] layers,
+>                   (y, row) <- zip [0..2] layer,
+>                   (x, cell) <- zip [0..2] row]
+>        r' = fromProjective $ withOffset (Vec3 0.5 0.5 0.5) r
 
 > data Symmetry = RotationOnly | RotationAndReflection
-
-The list of all forms of a shape now needs to depend on what symmetries are
-allowed.
 
 > allForms :: Shape -> Symmetry -> [(Recipe, Form)]
 > allForms shape symmetry = nubBy ((==) `on` snd) $
@@ -160,18 +136,15 @@ allowed.
 >                            recipe <- recipes shape]
 >  where
 >   df = defaultForm shape
->   recipes L = [r | r@(Rotation _ y,
->                       Rotation _ x,
->                       Translation (a, b, c)) <- allRecipes L,
->                y == 0,
->                x == 0,
->                symmetry `allows` c]
+>   recipes L = [s | s <- shifts L, symmetry `allows` s]
 >   recipes shape = allRecipes shape
 
->   RotationOnly          `allows` c = True
->   RotationAndReflection `allows` c = (c /= 2)
+To eliminate reflection symmetries, cases where L is translated by 2 along Z are eliminated. (They'd all be reflections of cases where L is translated by 0 along Z.) The translation component of the transform is in the fourth row of the matrix. The Z component of the translation is the third component of that.
 
->   allRecipes shape =  [(maj, min, shift) |
+>   RotationOnly          `allows` _ = True
+>   RotationAndReflection `allows` s = (_3 $ _4 $ fromProjective s) /= 2
+
+>   allRecipes shape =  [shift .*. min .*. maj |
 >                        maj <- majors,
 >                        min <- minors,
 >                        shift <- shifts shape]
