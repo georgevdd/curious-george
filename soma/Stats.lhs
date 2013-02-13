@@ -26,7 +26,7 @@ A less brute-force way to arrive at the same numbers would be to see that:
  - each subsequent cube adds four more faces (it brings six faces into play, but one of its own and one of the existing ones are stuck together and hidden).
 So, the six four-cube shapes must all have 6 + 3*4 = 18 faces, and the one three-cube shape must have 6 + 2*4 = 14 faces.
 
-> countFaces = length . allFaces undefined . defaultForm
+> countFaces = length . allFaces . defaultForm
 
 That makes 122 faces in total. (In any solution, only 6*9 = 54 faces can go on the outside, so the other 68 must be inside the cube, in 34 pairs of adjacent faces.)
 
@@ -191,9 +191,10 @@ Google's math mailing list for that suggestion.
 >                   [68, 139, 152, 208, 234, 336, 363, 386, 487, 513]
 > chosenComboIsValid = not $ null $ run' chosenCombo
 
-> mesh' paints shape = (verts, [(vis, paint) |
->                               ((vis, _), paint) <- zip faces paints])
->  where (verts, faces) = mesh undefined shape
+> mesh' paints shape = mesh faceToPaint shape
+>  where
+>   faceToPaint face = fromJust $ lookup face (zip theFaces paints)
+>   theFaces = [x | (_,_,x) <- allFaces $ defaultForm shape]
 
 > implodeCombo combo = (cfToSolution, implodePainting ps)
 >  where (cfToSolution, ps) = unzip [((cf, solution), p) |
@@ -202,16 +203,12 @@ Google's math mailing list for that suggestion.
 > comboMeshes cfToSolution shapeFaces = [(shape, mesh' faceInfos shape) |
 >                                        (shape, faceInfos) <- shapeFaces]
 
-> writeCameraKeyframes :: [CubeFace] -> IO ()
-> writeCameraKeyframes = writeFile "camera_keys.txt" . show . map show
-
 > testMeshes = do
 >   let (cfToSolution, shapeFaces) = implodeCombo chosenCombo
 >   writeMeshes $ comboMeshes cfToSolution shapeFaces
 >   writeSolutions [Solution [(shape, recipe .*. toXaxis sign axis, bitmap) |
 >                             (shape, recipe, bitmap) <- s] |
 >                   (CubeFace sign axis, Solution s) <- cfToSolution]
->   writeCameraKeyframes [axis | (axis, _) <- cfToSolution]
 >   importIntoBlender
 
 > implodePainting :: [[(Shape, [FacePaint])]]
@@ -223,4 +220,5 @@ Google's math mailing list for that suggestion.
 >  where
 >   superpose = map (FacePaint . msum . map cubeFace) . transpose
 
-> main = print chosenCombo
+> --main = print chosenCombo
+> main = testMeshes

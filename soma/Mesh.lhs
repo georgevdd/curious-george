@@ -1,8 +1,9 @@
 > module Mesh where
 
+> import Control.Monad (msum)
 > import Data.Function (on)
 > import Data.Map (fromList, keys, lookupIndex)
-> import Data.Maybe (catMaybes, fromJust, listToMaybe)
+> import Data.Maybe (catMaybes, fromJust, isJust, listToMaybe)
 > import Data.Ord (comparing)
 > import Data.Vect
 
@@ -21,13 +22,19 @@
 >                  (.* fromProjective r) .
 >                  (extendWith 1 :: Vec3 -> Vec4)
 
-> xAxisFaces :: Form -> [Face]
-> xAxisFaces form = [Vec3 x y z |
+> xAxisFaces :: Form -> [(Sign, Face)]
+> xAxisFaces form = [(fromJust dir, o &+ Vec3 x y z) |
 >                    (z, layer)   <- zip [0..] (unform form),
 >                    (y, row)     <- zip [0..] layer,
->                    (x, isFace)  <- zip [0..] (markFaces row),
->                    isFace]
->  where markFaces row = zipWith (/=) (' ':row) (row ++ [' '])
+>                    (x, dir)  <- zip [0..] (markFaces row),
+>                    isJust dir]
+>  where
+>   markFaces row = zipWith faceDir (' ':row) (row ++ [' '])
+>   faceDir ' ' ' ' = Nothing
+>   faceDir ' '  x  = Just Negative
+>   faceDir  x  ' ' = Just Positive
+>   faceDir  _   _  = Nothing
+>   o = Vec3 0 0.5 0.5
 
 > data Sign = Negative | Positive deriving (Eq, Ord, Show)
 > data CubeFace = CubeFace Sign Axis deriving (Eq, Ord)
@@ -48,32 +55,38 @@
 > fromXaxis Positive = convXaxis 3
 > fromXaxis Negative = (exactRotation (rotMatrixY pi) .*.) . fromXaxis Positive
 
-> axisFaces :: Axis -> Form -> [Face]
-> axisFaces axis = map (vApplyRecipe $ fromXaxis Positive axis) .
+> axisFaces :: Axis -> Form -> [(Sign, Axis, Face)]
+> axisFaces axis = map (\(sign, face) ->
+>                       (sign,
+>                        axis,
+>                        vApplyRecipe (fromXaxis Positive axis) face)) .
 >                  xAxisFaces .
 >                  applyRecipe (toXaxis Positive axis)
 
-> faceVerts axis (Vec3 x y z) = case axis of
->                               X -> [Vec3 x (y+y') (z+z') | (y', z') <- square]
->                               Y -> [Vec3 (x-x') y (z+z') | (x', z') <- square]
->                               Z -> [Vec3 (x-x') (y+y') z | (x', y') <- square]
->  where square = [(0,0), (0,1), (1,1), (1,0)]
+> faceVerts sign axis (Vec3 x y z) = case axis of
+>                                    X -> [Vec3 x (y+y') (z+z') | (y', z') <- square]
+>                                    Y -> [Vec3 (x-x') y (z+z') | (x', z') <- square]
+>                                    Z -> [Vec3 (x+x') (y+y') z | (x', y') <- square]
+>  where square = (if sign == Negative then reverse else id)
+>                 [(-0.5, -0.5), (0.5,-0.5), (0.5,0.5), (-0.5,0.5)]
 
-> paintFace verts = listToMaybe . catMaybes $
->                   [paint vs axis | (vs, axis) <- [(xs, X), (ys, Y), (zs, Z)]]
+> paintFace :: Recipe -> Face -> FacePaint
+> paintFace recipe face = FacePaint $ msum $ map measure [X, Y, Z]
 >  where
->   (xs, ys, zs) = (map _1 verts, map _2 verts, map _3 verts)
->   paint vs axis = if all (== 0) vs then Just $ CubeFace Negative axis
->                   else if all (==3) vs then Just $ CubeFace Positive axis
->                   else Nothing
+>   face' = vApplyRecipe recipe face
+>   measure axis = case coord axis face' of
+>                  3 -> Just (CubeFace Positive axis)
+>                  0 -> Just (CubeFace Negative axis)
+>                  _ -> Nothing
+> coord X = _1
+> coord Y = _2
+> coord Z = _3
 
-> axisInfo :: Recipe -> Axis -> Form -> [([Vert], FacePaint)]
-> axisInfo recipe axis form = [(faceVerts axis face,
->                               FacePaint $ paintFace $ map (vApplyRecipe recipe)
->                               $ faceVerts axis face) |
->                              face <- axisFaces axis form]
+> allFaces form = concat [axisFaces axis form | axis <- enumFrom X]
 
-> allFaces recipe f = concat [axisInfo recipe axis f | axis <- enumFrom X]
+> allInfo :: (Face -> a) -> Form -> [([Vert], a)]
+> allInfo painter form = [(faceVerts sign axis face, painter face) |
+>                         (sign, axis, face) <- allFaces form]
 
 > shareVerts :: Ord k => [([k], t)] -> ([k], [([Int], t)])
 > shareVerts faces = (keys vertMap,
@@ -81,8 +94,8 @@
 >                      (verts, x) <- faces])
 >  where vertMap = fromList [(v, ()) | v <- concat (map fst faces)]
 
-> mesh recipe = shareVerts . allFaces recipe . defaultForm
-> allMeshes (Solution fs) = [(shape, mesh recipe shape) |
+> mesh painter = shareVerts . allInfo painter . defaultForm
+> allMeshes (Solution fs) = [(shape, mesh (paintFace recipe) shape) |
 >                            (shape, recipe, _) <- fs]
 
 > type PyVert = (Int, Int, Int)
