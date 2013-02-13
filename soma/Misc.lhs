@@ -8,6 +8,13 @@ This is a dumping ground for bits and pieces that might migrate into more dedica
 > import Data.Ord
 > import Data.Word
 
+> showBinary :: Bits a => a -> String
+> showBinary x = [if testBit x n then '1' else '0' | n <- [w-1,w-2..0]]
+>  where w = bitSize x
+
+> readBinary :: Bits a => String -> a
+> readBinary = foldl setBit 0 . elemIndices '1' . reverse
+
 > -- | For example: histogram "aaabbcaa" == [('a',5),('b',2),('c',1)]
 > histogram :: Ord a => [a] -> [(a, Int)]
 > histogram xs = [(value, length bucket) |

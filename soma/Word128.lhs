@@ -20,6 +20,10 @@
 > instance Bits a => Bits (WordPair a) where
 >   (.&.) = pieceWise (.&.)
 >   (.|.) = pieceWise (.|.)
+>   complement (WordPair (h, l)) = WordPair (complement h, complement l)
+>   WordPair (h, l) `shiftL` n = WordPair ((h `shiftL` n) .|.
+>                                          (l `shiftR` (bitSize l - n)),
+>                                          (l `shiftL` n))
 >   testBit (WordPair (h, l)) n = if n < bitSize l
 >                                 then testBit l n
 >                                 else testBit h (n - bitSize l)
@@ -28,9 +32,5 @@
 >                                else WordPair (setBit h (n - bitSize l), l)
 >   bitSize (WordPair (h, l)) = bitSize h + bitSize l
 >   popCount (WordPair (h, l)) = popCount h + popCount l
-
-> showBinary :: Bits a => a -> String
-> showBinary x = [if testBit x n then '1' else '0' | n <- [w-1,w-2..0]]
->  where w = bitSize x
 
 > type Word128 = WordPair Word64
