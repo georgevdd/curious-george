@@ -2,6 +2,14 @@
 
 This is a dumping ground for bits and pieces that might migrate into more dedicated modules once they have more companions.
 
+#ifndef MIN_VERSION_base
+#define MIN_VERSION_base(a,b,c) 0
+#endif
+
+#if MIN_VERSION_base(4,5,0) || (__GLASGOW_HASKELL__ >= 704)
+#define HAVE_popCount
+#endif
+
 > module Misc where
 >
 > import Data.Bits
@@ -17,7 +25,7 @@ This is a dumping ground for bits and pieces that might migrate into more dedica
 > readBinary :: Bits a => String -> a
 > readBinary = foldl setBit 0 . elemIndices '1' . reverse
 
-#ifndef HAVE_POPCOUNT
+#ifndef HAVE_popCount
 > popCount :: Bits a => a -> Int
 > popCount = length . filter (=='1') . showBinary
 #endif

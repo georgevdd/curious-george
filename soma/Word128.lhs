@@ -1,9 +1,18 @@
 > {-# LANGUAGE CPP #-}
+
+#ifndef MIN_VERSION_base
+#define MIN_VERSION_base(a,b,c) 0
+#endif
+
+#if MIN_VERSION_base(4,5,0) || (__GLASGOW_HASKELL__ >= 704)
+#define HAVE_popCount
+#endif
+
 > module Word128 where
 > import Data.Bits
 > import Data.Word
 
-#ifndef HAVE_POPCOUNT
+#ifndef HAVE_popCount
 > import Misc (popCount)
 #endif
 
@@ -36,8 +45,8 @@
 >                                then WordPair (h, setBit l n)
 >                                else WordPair (setBit h (n - bitSize l), l)
 >   bitSize (WordPair (h, l)) = bitSize h + bitSize l
-#ifdef HAVE_POPCOUNT
+#ifdef HAVE_popCount
 >   popCount (WordPair (h, l)) = popCount h + popCount l
-#endif  // HAVE_POPCOUNT
+#endif
 
 > type Word128 = WordPair Word64
