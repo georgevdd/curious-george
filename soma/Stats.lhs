@@ -196,9 +196,9 @@ Google's math mailing list for that suggestion.
 >   faceToPaint face = fromJust $ lookup face (zip theFaces paints)
 >   theFaces = [x | (_,_,x) <- allFaces $ defaultForm shape]
 
-> implodeCombo combo = (cfToSolution, implodePainting ps)
->  where (cfToSolution, ps) = unzip [((cf, solution), p) |
->                                    (_, (solution, _), cf, _, p, _) <- combo]
+> implodeCombo combo = (cfToSolution, implodePainting nps)
+>  where (cfToSolution, nps) = unzip [((cf, solution), (n, p)) |
+>                                     (n, (solution, _), cf, _, p, _) <- combo]
 
 > comboMeshes cfToSolution shapeFaces = [(shape, mesh' faceInfos shape) |
 >                                        (shape, faceInfos) <- shapeFaces]
@@ -211,14 +211,31 @@ Google's math mailing list for that suggestion.
 >                   (CubeFace sign axis, Solution s) <- cfToSolution]
 >   importIntoBlender
 
-> implodePainting :: [[(Shape, [FacePaint])]]
->                 -> [(Shape, [FacePaint])]
-> implodePainting ps = [(shape, superpose paintGroups) |
->                       (shape, paintGroups) <- [head $ groupKey grp |
->                                                grp <- groupSortBy fst .
->                                                       concat $ ps]]
+> type FaceMaterial = String
+
+> implodePainting :: [(Int, [(Shape, [FacePaint])])]
+>                 -> [(Shape, [FaceMaterial])]
+> implodePainting explodedFacePaints = [
+>     (shape, superpose paintGroups) |
+>     (shape, paintGroups) <- [head $ groupKey grp |
+>                              grp <- groupSortBy fst .
+>                              concat $ explodedFaceMaterials]]
 >  where
->   superpose = map (FacePaint . msum . map cubeFace) . transpose
+>   explodedFaceMaterials :: [[(Shape, [Maybe Int])]]
+>   explodedFaceMaterials = [substituteIndex (i, shapeFacePaints) |
+>                            (i, shapeFacePaints) <- explodedFacePaints]
+>   superpose = map (mkMaterial . msum) . transpose
+>   mkMaterial Nothing = "xx"
+>   mkMaterial (Just n) = "mat" ++ show n
+
+> substituteIndex :: (Int, [(Shape, [FacePaint])]) ->
+>                          [(Shape, [Maybe Int])]
+> substituteIndex (cubeFaceNumber, shapeFacePaints) = [
+>  (shape, [case (cubeFace paint) of
+>           Nothing -> Nothing
+>           Just _ -> Just cubeFaceNumber |
+>           paint <- facePaints]) |
+>  (shape, facePaints) <- shapeFacePaints]
 
 > --main = print chosenCombo
 > main = testMeshes

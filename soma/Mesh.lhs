@@ -102,7 +102,7 @@
 > pyVert :: Vert -> PyVert
 > pyVert (Vec3 x y z) = (round x, round y, round z)
 > pyMesh (vs, x) = (map pyVert vs, x)
-> writeMeshes :: [(Shape, ([Vert], [([Int], FacePaint)]))] -> IO ()
+> writeMeshes :: Show a => [(Shape, ([Vert], [([Int], a)]))] -> IO ()
 > writeMeshes ms = writeFile "shapes.txt" $ show [(show shape, pyMesh m) |
 >                                                 (shape, m) <- ms]
 
