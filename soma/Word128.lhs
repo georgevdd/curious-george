@@ -1,6 +1,11 @@
+> {-# LANGUAGE CPP #-}
 > module Word128 where
 > import Data.Bits
 > import Data.Word
+
+#ifndef HAVE_POPCOUNT
+> import Misc (popCount)
+#endif
 
 > newtype WordPair a = WordPair (a, a) deriving (Eq, Show)
 
@@ -31,6 +36,11 @@
 >                                then WordPair (h, setBit l n)
 >                                else WordPair (setBit h (n - bitSize l), l)
 >   bitSize (WordPair (h, l)) = bitSize h + bitSize l
+#ifdef HAVE_POPCOUNT
 >   popCount (WordPair (h, l)) = popCount h + popCount l
+<<<<<<< HEAD
+=======
+#endif  // HAVE_POPCOUNT
+>>>>>>> ae2f5f6509167ceae3cf841a7970606a77887f77
 
 > type Word128 = WordPair Word64

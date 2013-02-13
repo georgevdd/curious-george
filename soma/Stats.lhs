@@ -10,6 +10,7 @@
 > import Data.Maybe
 > import Data.Monoid
 > import Data.Ord
+> import Data.Vect ((.*.))
 > import Data.Word
 
 > import Cube hiding (main)
@@ -178,11 +179,17 @@ The following working form now contains, for each interesting solution face, a d
 >                         (impossibleInfos .|. conflicts)
 >                         infos
 
-> run = search [] (0::Integer) compressedFaceInfos
+> run' = search [] (0::Integer)
+> run = run' compressedFaceInfos
 
 > --chosenCombo = head run
-> --Thanks to Tomek Czaka for this set.
-> chosenCombo = map (compressedFaceInfos!!) [1, 17, 88, 141, 234, 337, 350, 466, 494, 576]
+
+This was found very quickly with a linear constraint solver. Thanks to
+Google's math mailing list for that suggestion.
+
+> chosenCombo = map (compressedFaceInfos!!)
+>                   [68, 139, 152, 208, 234, 336, 363, 386, 487, 513]
+> chosenComboIsValid = not $ null $ run' chosenCombo
 
 > mesh' paints shape = (verts, [(vis, paint) |
 >                               ((vis, _), paint) <- zip faces paints])
@@ -199,10 +206,12 @@ The following working form now contains, for each interesting solution face, a d
 > writeCameraKeyframes = writeFile "camera_keys.txt" . show . map show
 
 > testMeshes = do
->   let (cfToSolution, shapeFaces) = implodeCombo $ chosenCombo
+>   let (cfToSolution, shapeFaces) = implodeCombo chosenCombo
 >   writeMeshes $ comboMeshes cfToSolution shapeFaces
->   writeSolutions $ map snd cfToSolution
->   writeCameraKeyframes [axis | (axis, _) <- fst $ implodeCombo chosenCombo]
+>   writeSolutions [Solution [(shape, recipe .*. toXaxis sign axis, bitmap) |
+>                             (shape, recipe, bitmap) <- s] |
+>                   (CubeFace sign axis, Solution s) <- cfToSolution]
+>   writeCameraKeyframes [axis | (axis, _) <- cfToSolution]
 >   importIntoBlender
 
 > implodePainting :: [[(Shape, [FacePaint])]]

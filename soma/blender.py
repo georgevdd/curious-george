@@ -32,7 +32,7 @@ def ReadShapes():
         n = len(materials)
         material = bpy.data.materials.new(mat_name)
         col = mu.Color((1,1,1))
-        col.s = 0.7
+        col.s = (n %2 ) and 0.7 or 0.3
         col.h = n / 11.0
         col.v = (n % 2) and 0.3 or 1.0
         material.diffuse_color = col
@@ -66,8 +66,9 @@ def ReadSolutions():
   solutions = eval(file('pysolutions.txt').read())
 
   for i, solution in enumerate(solutions + solutions[:1]):
-    for name, (euler, location) in solution:
-      props = {'rotation_euler': euler, 'location': location }
+    for name, (rot, location) in solution:
+      props = {'rotation_euler': mu.Matrix(rot).to_euler(),
+               'location': location }
 
       obj = bpy.data.objects[name]
 
@@ -117,6 +118,5 @@ def ReadCameraKeyframes():
 if __name__ == '__main__':
   ReadShapes()
   ReadSolutions()
-  ReadCameraKeyframes()
   bpy.ops.wm.save_as_mainfile(filepath="tenfold.blend", check_existing=False)
   bpy.ops.wm.quit_blender()

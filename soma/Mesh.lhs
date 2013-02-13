@@ -1,26 +1,28 @@
 > module Mesh where
 
+> import Data.Function (on)
 > import Data.Map (fromList, keys, lookupIndex)
 > import Data.Maybe (catMaybes, fromJust, listToMaybe)
+> import Data.Ord (comparing)
+> import Data.Vect
 
 > import System.Process (runCommand)
 
 > import Cube
 
-> vApplyR :: Rotation -> (Int, Int, Int) -> (Int, Int, Int)
-> vApplyR (Rotation a n) = times n (r a)
->  where
->   r X (x, y, z) = (x, 3-z, y)
->   r Y (x, y, z) = (z, y, 3-x)
->   r Z (x, y, z) = (3-y, x, z)
+> type Vert = Vec3
+> type Face = Vec3
 
-> vApplyT :: Translation -> (Int, Int, Int) -> (Int, Int, Int)
-> vApplyT (Translation (x', y', z')) (x, y, z) = (x+x', y+y', z+z')
+> instance Eq Vec3 where (==) = (==) `on` (destructVec3 . (:[]))
+> instance Ord Vec3 where compare = comparing (destructVec3 . (:[]))
 
-> vApplyRecipe (maj, min, shift) = vApplyR maj . vApplyR min . vApplyT shift
+> vApplyRecipe :: Recipe -> Vec3 -> Vec3
+> vApplyRecipe r = trim .
+>                  (.* fromProjective r) .
+>                  (extendWith 1 :: Vec3 -> Vec4)
 
-> faceCoords :: Form -> [(Int, Int, Int)]
-> faceCoords form = [(x, y, z) |
+> xAxisFaces :: Form -> [Face]
+> xAxisFaces form = [Vec3 x y z |
 >                    (z, layer)   <- zip [0..] (unform form),
 >                    (y, row)     <- zip [0..] layer,
 >                    (x, isFace)  <- zip [0..] (markFaces row),
@@ -37,29 +39,30 @@
 >         '\"', head $ show axis, head $ show sign, '\"']
 >        show (FacePaint Nothing) = "\"xx\""
 
-> type Vert = (Int, Int, Int)
-
-> type Face = (Int, Int, Int)
+> convXaxis :: Float -> Axis -> Recipe
+> convXaxis _ X = one
+> convXaxis n Y = exactRotation (rotMatrixZ $ -n*pi/2)
+> convXaxis n Z = exactRotation (rotMatrixY $ n*pi/2)
+> toXaxis Positive = convXaxis 1
+> toXaxis Negative = (.*. exactRotation (rotMatrixY pi)) . toXaxis Positive
+> fromXaxis Positive = convXaxis 3
+> fromXaxis Negative = (exactRotation (rotMatrixY pi) .*.) . fromXaxis Positive
 
 > axisFaces :: Axis -> Form -> [Face]
-> axisFaces axis = map (vApplyR $ r axis 3) .
->                  faceCoords .
->                  applyR (r axis 1)
->  where
->   r X _ = Rotation X 0
->   r Y n = Rotation Z n
->   r Z n = Rotation Y n
+> axisFaces axis = map (vApplyRecipe $ fromXaxis Positive axis) .
+>                  xAxisFaces .
+>                  applyRecipe (toXaxis Positive axis)
 
-> faceVerts axis (x, y, z) = case axis of
->                              X -> [(x, y+y', z+z') | (y', z') <- square]
->                              Y -> [(x+x', y, z+z') | (x', z') <- square]
->                              Z -> [(x-x', y+y', z) | (x', y') <- square]
+> faceVerts axis (Vec3 x y z) = case axis of
+>                               X -> [Vec3 x (y+y') (z+z') | (y', z') <- square]
+>                               Y -> [Vec3 (x-x') y (z+z') | (x', z') <- square]
+>                               Z -> [Vec3 (x-x') (y+y') z | (x', y') <- square]
 >  where square = [(0,0), (0,1), (1,1), (1,0)]
 
 > paintFace verts = listToMaybe . catMaybes $
 >                   [paint vs axis | (vs, axis) <- [(xs, X), (ys, Y), (zs, Z)]]
 >  where
->   (xs, ys, zs) = unzip3 verts
+>   (xs, ys, zs) = (map _1 verts, map _2 verts, map _3 verts)
 >   paint vs axis = if all (== 0) vs then Just $ CubeFace Negative axis
 >                   else if all (==3) vs then Just $ CubeFace Positive axis
 >                   else Nothing
@@ -79,27 +82,25 @@
 >  where vertMap = fromList [(v, ()) | v <- concat (map fst faces)]
 
 > mesh recipe = shareVerts . allFaces recipe . defaultForm
-> allMeshes (Solution fs) = [(shape, mesh recipe shape) | (shape, recipe, _) <- fs]
+> allMeshes (Solution fs) = [(shape, mesh recipe shape) |
+>                            (shape, recipe, _) <- fs]
 
+> type PyVert = (Int, Int, Int)
+> pyVert :: Vert -> PyVert
+> pyVert (Vec3 x y z) = (round x, round y, round z)
+> pyMesh (vs, x) = (map pyVert vs, x)
 > writeMeshes :: [(Shape, ([Vert], [([Int], FacePaint)]))] -> IO ()
-> writeMeshes ms = writeFile "shapes.txt" $ show [(show shape, m) |
+> writeMeshes ms = writeFile "shapes.txt" $ show [(show shape, pyMesh m) |
 >                                                 (shape, m) <- ms]
 
-> pyRecipe recipe@(maj, min, shift) = ((roll, pitch, heading), location)
+> pyRecipe recipe = (tfm, pyVert origin)
 >  where
->   location = vApplyRecipe recipe (0, 0, 0)
->   heading =
->     case maj of Rotation X _ -> error "X should only appear as a minor axis"
->                 Rotation Y _ -> 0
->                 Rotation Z n -> quarterTurns n
->   pitch =
->     case maj of Rotation X _ -> error "X should only appear as a minor axis"
->                 Rotation Y n -> quarterTurns n
->                 Rotation Z _ -> 0
->   roll =
->     case min of Rotation X n -> quarterTurns n
->                 _            -> error "Only X should appear as a minor axis"
->   quarterTurns n = (fromIntegral n) * pi/2
+>   tfm = [[mat j i | j <- [0..2]] | i <- [0..2]]
+>   mat i j = idx j $ idx i $ fromProjective recipe
+>   idx :: HasCoordinates v e => Int -> v -> e
+>   idx = ([_1, _2, _3, _4]!!)
+
+>   origin  = vApplyRecipe recipe zero
 
 > pySolution (Solution fs) = [(show shape, pyRecipe recipe) |
 >                             (shape, recipe, _) <- fs]
