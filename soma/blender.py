@@ -32,7 +32,7 @@ def ReadShapes():
 
   materials = {}
   for (_, (_, faces)) in meshes:
-    for i, (_, mat_name) in enumerate(faces):
+    for i, (_, (mat_name, _)) in enumerate(faces):
       if mat_name not in materials:
         n = len(materials)
 
@@ -54,6 +54,8 @@ def ReadShapes():
 
         texture_slot = material.texture_slots.add()
         texture_slot.texture = texture
+        texture_slot.texture_coords = 'UV'
+        texture_slot.uv_layer = 'TheUV'
 
   for i, (name, (verts, faces)) in enumerate(meshes):
     poly = bpy.data.meshes.new(name)
@@ -63,14 +65,14 @@ def ReadShapes():
       poly.vertices[j].co = v
 
     mesh_materials = []
-    for (_, mat_name) in faces:
+    for (_, (mat_name, uvs)) in faces:
       if mat_name not in mesh_materials:
         mesh_materials.append(mat_name)
     for mat_name in mesh_materials:
       poly.materials.append(bpy.data.materials[mat_name])
 
     poly.faces.add(len(faces))
-    for j, (verts, mat_name) in enumerate(faces):
+    for j, (verts, (mat_name, uvs)) in enumerate(faces):
       f = poly.faces[j]
       f.vertices_raw = RawVertices(verts)
       f.material_index = mesh_materials.index(mat_name)
@@ -78,8 +80,12 @@ def ReadShapes():
     poly.update()
 
     uv_texture = poly.uv_textures.new('TheUV')
-    for (face, face_data) in zip(poly.faces, uv_texture.data):
-      face_data.image = poly.materials[face.material_index].texture_slots[0].texture.image
+    for ((_, (_, uvs)), face, face_data) in zip(faces, poly.faces,
+                                                uv_texture.data):
+      face_data.image = (poly.materials[face.material_index].
+                         texture_slots[0].texture.image)
+      uvs_ = [list(uv) for uv in uvs]
+      face_data.uv_raw = sum(uvs_, [])
 
     obj = bpy.data.objects.new(name, poly)
     bpy.context.scene.objects.link(obj)

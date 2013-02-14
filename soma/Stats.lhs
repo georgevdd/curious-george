@@ -10,7 +10,7 @@
 > import Data.Maybe
 > import Data.Monoid
 > import Data.Ord
-> import Data.Vect ((.*.))
+> import Data.Vect hiding (transpose)
 > import Data.Word
 
 > import Cube hiding (main)
@@ -191,10 +191,30 @@ Google's math mailing list for that suggestion.
 >                   [68, 139, 152, 208, 234, 336, 363, 386, 487, 513]
 > chosenComboIsValid = not $ null $ run' chosenCombo
 
+> pyVec2 (Vec2 x y) = (x, y)
+
 > mesh' paints shape = mesh faceToPaint shape
 >  where
->   faceToPaint face = fromJust $ lookup face (zip theFaces paints)
->   theFaces = [x | (_,_,x) <- allFaces $ defaultForm shape]
+>   faceToPaint face = (matName, map (check . pyVec2) uvs)
+>    where
+>     check (0.5, _) = e
+>     check (_, 0.5) = e
+>     check v@(_, _) = v
+>     e = error $ "Oops " ++ show uvOffsets ++ " " ++ show face ++ "\n" ++ show uvNormal ++ " " ++ show rawUvs ++ " " ++ show uvs
+>     (matName, uvOffsets@[a,b,c,d]) = fromJust $ lookup face (zip faceCoords paints)
+>     uvNormal = (b &- a) &^ (c &- b)
+>     rawUvs = map (&+ face) uvOffsets
+>     uvs = map ((&* (1/3)) . apply extract) rawUvs
+>     apply :: (Vec3 -> Float, Vec3 -> Float) -> Vec3 -> Vec2
+>     apply (exU, exV) vec = Vec2 (exU vec) (exV vec)
+>     extract = case pyVert uvNormal of
+>                 (1, 0, 0) -> (_2, _3)
+>                 (0, 1, 0) -> (_3, _1)
+>                 (0, 0, 1) -> (_1, _2)
+>                 (-1, 0, 0) -> (_2, _3)
+>                 (0, -1, 0) -> (_3, _1)
+>                 (0, 0, -1) -> (_1, _2)
+>   faceCoords = [x | (_,_,x) <- allFaces $ defaultForm shape]
 
 > implodeCombo combo = (cfToSolution, implodePainting nps)
 >  where (cfToSolution, nps) = unzip [((cf, solution), (n, p)) |
@@ -211,7 +231,7 @@ Google's math mailing list for that suggestion.
 >                   (CubeFace sign axis, Solution s) <- cfToSolution]
 >   importIntoBlender
 
-> type FaceMaterial = String
+> type FaceMaterial = (String, [Vec3])
 
 > implodePainting :: [(Int, [(Shape, [FacePaint])])]
 >                 -> [(Shape, [FaceMaterial])]
@@ -221,21 +241,25 @@ Google's math mailing list for that suggestion.
 >                              grp <- groupSortBy fst .
 >                              concat $ explodedFaceMaterials]]
 >  where
->   explodedFaceMaterials :: [[(Shape, [Maybe Int])]]
->   explodedFaceMaterials = [substituteIndex (i, shapeFacePaints) |
+>   explodedFaceMaterials :: [[(Shape, [Maybe (Int, Sign, Axis)])]]
+>   explodedFaceMaterials = [kneadIndex (i, shapeFacePaints) |
 >                            (i, shapeFacePaints) <- explodedFacePaints]
+>   superpose :: [[Maybe (Int, Sign, Axis)]] -> [FaceMaterial]
 >   superpose = map (mkMaterial . msum) . transpose
->   mkMaterial Nothing = "xx"
->   mkMaterial (Just n) = "mat" ++ show n
+>   mkMaterial Nothing = ("xx", genUvOffsets Positive X)
+>   mkMaterial (Just (n, sign, axis)) = (show n, genUvOffsets sign axis)
 
-> substituteIndex :: (Int, [(Shape, [FacePaint])]) ->
->                          [(Shape, [Maybe Int])]
-> substituteIndex (cubeFaceNumber, shapeFacePaints) = [
+> kneadIndex :: (Int, [(Shape, [FacePaint])]) ->
+>                     [(Shape, [Maybe (Int, Sign, Axis)])]
+> kneadIndex (cubeFaceNumber, shapeFacePaints) = [
 >  (shape, [case (cubeFace paint) of
 >           Nothing -> Nothing
->           Just _ -> Just cubeFaceNumber |
+>           Just (CubeFace sign axis) -> Just (cubeFaceNumber, sign, axis) |
 >           paint <- facePaints]) |
 >  (shape, facePaints) <- shapeFacePaints]
+
+> genUvOffsets :: Sign -> Axis -> [Vec3]
+> genUvOffsets sign axis = faceVerts sign axis zero
 
 > --main = print chosenCombo
 > main = testMeshes
