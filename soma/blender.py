@@ -8,8 +8,7 @@ file = io.open
 frames_per_solution = 10
 
 images = [
-    '/home/georgevdd/curious george.jpg',
-    '/home/georgevdd/georgevdd.jpg'
+  '/Users/georgevdd/Pictures/oh_you.tiff'
     ]
 
 # RGB components are in the range [0,1].
@@ -21,11 +20,12 @@ images = [
 # When assigning to a face's vertex index list, a final zero is ignored.
 # So, when creating a square face, rotate its vertex list if necessary
 # to make sure vertex zero can be specified.
-def RawVertices(verts):
+def RawVertices(verts, other_data):
   if len(verts) == 4 and verts[-1] == 0:
-    return [0] + verts[:-1]
+    return ((verts[-1:] + verts[:-1]),
+            (other_data[-1:] + other_data[:-1]))
   else:
-    return verts
+    return verts, other_data
 
 def ReadShapes():
   meshes = eval(file('shapes.txt').read())
@@ -74,7 +74,8 @@ def ReadShapes():
     poly.faces.add(len(faces))
     for j, (verts, (mat_name, uvs)) in enumerate(faces):
       f = poly.faces[j]
-      f.vertices_raw = RawVertices(verts)
+      f.vertices_raw, uvs_ = RawVertices(verts, uvs)
+      uvs[:] = uvs_
       f.material_index = mesh_materials.index(mat_name)
 
     poly.update()
