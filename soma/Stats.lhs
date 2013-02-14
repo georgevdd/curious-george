@@ -238,24 +238,23 @@ Google's math mailing list for that suggestion.
 >                              grp <- groupSortBy fst .
 >                              concat $ explodedFaceMaterials]]
 >  where
->   explodedFaceMaterials :: [[(Shape, [Maybe (Int, Recipe, Sign, Axis)])]]
+>   explodedFaceMaterials :: [[(Shape, [Maybe (Int, Recipe)])]]
 >   explodedFaceMaterials = [kneadIndex (i, solution, shapeFacePaints) |
 >                            (i, solution, shapeFacePaints) <- explodedFacePaints]
->   superpose :: [[Maybe (Int, Recipe, Sign, Axis)]] -> [FaceMaterial]
+>   superpose :: [[Maybe (Int, Recipe)]] -> [FaceMaterial]
 >   superpose = map (mkMaterial . msum) . transpose
 >   mkMaterial Nothing = ("xx", one)
->   mkMaterial (Just (n, recipe, sign, axis)) = (show n, recipe)
+>   mkMaterial (Just (n, recipe)) = (show n, recipe)
 
 > kneadIndex :: (Int, Solution, [(Shape, [FacePaint])]) ->
->                               [(Shape, [Maybe (Int, Recipe, Sign, Axis)])]
+>                               [(Shape, [Maybe (Int, Recipe)])]
 > kneadIndex (cubeFaceNumber, solution, shapeFacePaints) = [
->  (shape, [case (cubeFace paint) of
->           Nothing -> Nothing
->           Just (CubeFace sign axis) -> Just (cubeFaceNumber, recipe, sign, axis) |
+>  (shape, [fmap (const (cubeFaceNumber, recipe)) $ cubeFace paint |
 >           paint <- facePaints]) |
 >  (shape, recipe, facePaints) <- merge solution shapeFacePaints]
->   where merge (Solution s) (facePaints) = [(checkEqual "Yikes!" shape shape', recipe, paints) |
->                                            ((shape, recipe, _), (shape', paints) )<- zip s facePaints]
+>   where merge (Solution s) (facePaints) = [
+>          (checkEqual "Yikes!" shape shape', recipe, paints) |
+>          ((shape, recipe, _), (shape', paints) )<- zip s facePaints]
 
 > checkEqual msg s1 s2 = if s1 == s2 then s1 else error msg
 
