@@ -39,24 +39,31 @@ The following defines an offset into a bitfield at which to find the bits for ea
 >   reserveBits [] shape = [(shape, 0)]
 >   reserveBits os@((shape', o):_) shape = (shape, o + countFaces shape'):os
 
-Given a predicate that selects faces, the corresponding subset of faces can be represented as 128 bits.
+Given a predicate that selects faces of shapes, the corresponding subset of faces can be represented as 128 bits.
 
-> markFaces :: (FacePaint -> Bool) -> [(Shape, [FacePaint])] -> Word128
-> markFaces interesting painting = foldl setBit (fromInteger 0) bitsToSet
+> markingsAsBits :: [(Shape, [Bool])] -> Word128
+> markingsAsBits markings = foldl setBit (fromInteger 0) bitsToSet
 >  where
->   bitsForShape (shape, paints) = [shapeBitOffset!shape + i |
->                                   (i, paint) <- zip [0..] paints,
->                                   interesting paint]
->   bitsToSet = concatMap bitsForShape painting
+>   bitsForShape (shape, marking) = [shapeBitOffset!shape + i |
+>                                    (i, marked) <- zip [0..] marking,
+>                                    marked]
+>   bitsToSet = concatMap bitsForShape markings
+
+> mapFaces :: (a -> b) -> [(Shape, [a])] -> [(Shape, [b])]
+> mapFaces f = map (\(shape, faces) -> (shape, map f faces))
+
+> markFaces :: (a -> Bool) -> [(Shape, [a])] -> Word128
+> markFaces f = markingsAsBits . mapFaces f
 
 'paintings' takes a solution and lists, for each shape, how the shape's faces would be coloured by that solution.
 
 > paintings :: Solution -> [(Shape, [FacePaint])]
-> paintings solution = [(shape, map snd faces) | (shape, (_, faces)) <- allMeshes solution]
+> paintings solution = [(shape, map snd faces) |
+>                       (shape, (_, faces)) <- allMeshes solution]
 
 Now there's enough information to work out how many of the shapes' faces are ever on the outside of the cube:
 
-> totalEverExternalFaces = length [b | b <- showBinary everExternalBits, b == '1']
+> totalEverExternalFaces = popCount everExternalBits
 >  where
 >   everExternalBits = foldr1 (.|.) [markFaces (isJust . cubeFace) $
 >                                    paintings s | s <- solutions' RotationOnly]
@@ -69,19 +76,20 @@ In other words, the aim is to find as large a set of solutions as possible, such
 
 This function takes an assignment of cube faces to shape faces, and splits it into a separate list for each cube face.
 
-> explodePainting :: [(Shape, [FacePaint])] -> [(CubeFace, [(Shape, [FacePaint])])]
+> explodePainting :: [(Shape, [FacePaint])] -> [(CubeFace, [(Shape, [Bool])])]
 > explodePainting p = [(cf, filterPaint cf p) |
 >                      cf <- [CubeFace sign axis |
 >                             sign <- [Negative, Positive],
 >                             axis <- enumFrom X]]
 >  where
->   filterPaint cf shapePaints = [(shape, [matchPaint cf fp | fp <- facePaints]) | (shape, facePaints) <- shapePaints]
->   matchPaint cf fp@(FacePaint cf') = if Just cf == cf' then fp else fp { cubeFace = Nothing }
+>   filterPaint cf shapePaints = [(shape, [match cf fp | fp <- facePaints]) |
+>                                 (shape, facePaints) <- shapePaints]
+>   match cf (FacePaint cf') = (Just cf == cf')
 
 Applying that splitting function to the face assignments of each solution in turn results in the following function. It produces a list of 6 * 480 = 2880 elements.
 
-> faceInfos :: [((Solution, Int), CubeFace, Word128, [(Shape, [FacePaint])])]
-> faceInfos = [((solution, n), cf, markFaces (isJust . cubeFace) fs, fs) |
+> faceInfos :: [((Solution, Int), CubeFace, Word128, [(Shape, [Bool])])]
+> faceInfos = [((solution, n), cf, markingsAsBits fs, fs) |
 >               (solution, n) <- zip (solutions' RotationOnly) [0..],
 >               (cf, fs) <- explodePainting (paintings solution)]
 > solutionIndex ((_, n), _, _, _) = n
@@ -231,7 +239,7 @@ Google's math mailing list for that suggestion.
 >                   (CubeFace sign axis, Solution s) <- cfToSolution]
 >   importIntoBlender
 
-> implodePainting :: [(Int, Solution, [(Shape, [FacePaint])])]
+> implodePainting :: [(Int, Solution, [(Shape, [Bool])])]
 >                 -> [(Shape, [FaceMaterial])]
 > implodePainting explodedFacePaints = [
 >     (shape, superpose paintGroups) |
@@ -245,10 +253,10 @@ Google's math mailing list for that suggestion.
 >   superpose :: [[FaceMaterial]] -> [FaceMaterial]
 >   superpose = map msum . transpose
 
-> kneadIndex :: (Int, Solution, [(Shape, [FacePaint])]) ->
+> kneadIndex :: (Int, Solution, [(Shape, [Bool])]) ->
 >                               [(Shape, [FaceMaterial])]
 > kneadIndex (cubeFaceNumber, solution, shapeFacePaints) = [
->  (shape, [fmap (const (cubeFaceNumber, recipe)) $ cubeFace paint |
+>  (shape, [if paint then Just (cubeFaceNumber, recipe) else Nothing |
 >           paint <- facePaints]) |
 >  (shape, recipe, facePaints) <- merge solution shapeFacePaints]
 >   where merge (Solution s) (facePaints) = [
