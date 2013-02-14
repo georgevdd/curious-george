@@ -7,6 +7,11 @@ file = io.open
 
 frames_per_solution = 10
 
+images = [
+    '/home/georgevdd/curious george.jpg',
+    '/home/georgevdd/georgevdd.jpg'
+    ]
+
 # RGB components are in the range [0,1].
 #
 # NMesh.materials is a list of Material objects. NMesh.faces[i].mat is the
@@ -30,6 +35,15 @@ def ReadShapes():
     for i, (_, mat_name) in enumerate(faces):
       if mat_name not in materials:
         n = len(materials)
+
+        image_filename = images[n % len(images)]
+        image = bpy.data.images.new('Image%d' % n, width=256, height=256)
+        image.source = 'FILE'
+        image.filepath = image_filename
+
+        texture = bpy.data.textures.new('Texture%d' % n, type='IMAGE')
+        texture.image = image
+
         material = bpy.data.materials.new(mat_name)
         col = mu.Color((1,1,1))
         col.s = (n %2 ) and 0.7 or 0.3
@@ -37,6 +51,9 @@ def ReadShapes():
         col.v = (n % 2) and 0.3 or 1.0
         material.diffuse_color = col
         materials[mat_name] = material
+
+        texture_slot = material.texture_slots.add()
+        texture_slot.texture = texture
 
   for i, (name, (verts, faces)) in enumerate(meshes):
     poly = bpy.data.meshes.new(name)
@@ -59,6 +76,11 @@ def ReadShapes():
       f.material_index = mesh_materials.index(mat_name)
 
     poly.update()
+
+    uv_texture = poly.uv_textures.new('TheUV')
+    for (face, face_data) in zip(poly.faces, uv_texture.data):
+      face_data.image = poly.materials[face.material_index].texture_slots[0].texture.image
+
     obj = bpy.data.objects.new(name, poly)
     bpy.context.scene.objects.link(obj)
 
