@@ -193,12 +193,15 @@ Google's math mailing list for that suggestion.
 
 > pyVec2 (Vec2 x y) = (x, y)
 
-> mesh' :: [FaceMaterial] -> Shape -> ([Vert], [([Int], (String, [(Float, Float)]))])
-> mesh' faceMaterials shape = mesh (fromJust . flip lookup faceInfo) shape
+> type FaceMaterial = Maybe (Int, Recipe)
+> pyMaterial Nothing = ("xx", one)
+> pyMaterial (Just (n, recipe)) = (show n, recipe)
+
+> painter faceMaterials shape = fromJust . flip lookup faceInfo
 >  where 
 >   faceInfo = [(face, (matName, uvs recipe (faceVerts sign axis face))) |
 >               ((sign, axis, face), (matName, recipe)) <-
->               zip (allFaces $ defaultForm shape) (faceMaterials)]
+>               zip (allFaces $ defaultForm shape) (map pyMaterial faceMaterials)]
 >   uvs recipe defaultFormFaceVerts = map (pyVec2 . (&* (1/3)) . (apply $ extract inSolutionFaceVerts))
 >                                         inSolutionFaceVerts
 >     where inSolutionFaceVerts = map (vApplyRecipe recipe) defaultFormFaceVerts
@@ -217,7 +220,7 @@ Google's math mailing list for that suggestion.
 >  where (cfToSolution, nps) = unzip [((cf, solution), (n, solution, p)) |
 >                                     (n, (solution, _), cf, _, p, _) <- combo]
 
-> comboMeshes cfToSolution shapeFaces = [(shape, mesh' faceInfos shape) |
+> comboMeshes cfToSolution shapeFaces = [(shape, mesh (painter faceInfos shape) shape) |
 >                                        (shape, faceInfos) <- shapeFaces]
 
 > testMeshes = do
@@ -228,8 +231,6 @@ Google's math mailing list for that suggestion.
 >                   (CubeFace sign axis, Solution s) <- cfToSolution]
 >   importIntoBlender
 
-> type FaceMaterial = (String, Recipe)
-
 > implodePainting :: [(Int, Solution, [(Shape, [FacePaint])])]
 >                 -> [(Shape, [FaceMaterial])]
 > implodePainting explodedFacePaints = [
@@ -238,16 +239,14 @@ Google's math mailing list for that suggestion.
 >                              grp <- groupSortBy fst .
 >                              concat $ explodedFaceMaterials]]
 >  where
->   explodedFaceMaterials :: [[(Shape, [Maybe (Int, Recipe)])]]
+>   explodedFaceMaterials :: [[(Shape, [FaceMaterial])]]
 >   explodedFaceMaterials = [kneadIndex (i, solution, shapeFacePaints) |
 >                            (i, solution, shapeFacePaints) <- explodedFacePaints]
->   superpose :: [[Maybe (Int, Recipe)]] -> [FaceMaterial]
->   superpose = map (mkMaterial . msum) . transpose
->   mkMaterial Nothing = ("xx", one)
->   mkMaterial (Just (n, recipe)) = (show n, recipe)
+>   superpose :: [[FaceMaterial]] -> [FaceMaterial]
+>   superpose = map msum . transpose
 
 > kneadIndex :: (Int, Solution, [(Shape, [FacePaint])]) ->
->                               [(Shape, [Maybe (Int, Recipe)])]
+>                               [(Shape, [FaceMaterial])]
 > kneadIndex (cubeFaceNumber, solution, shapeFacePaints) = [
 >  (shape, [fmap (const (cubeFaceNumber, recipe)) $ cubeFace paint |
 >           paint <- facePaints]) |
