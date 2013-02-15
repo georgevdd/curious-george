@@ -74,7 +74,7 @@ Obviously, six disjoint solution faces can be simultaneously assigned to the fac
 
 In other words, the aim is to find as large a set of solutions as possible, such that there is some choice of one face from each solution having the property that the chosen faces all occupy disjoint sets of piece faces.
 
-This function takes an assignment of cube faces to shape faces, and splits it into a separate list for each cube face.
+This function takes an assignment of cube faces to shape faces, and splits it into a separate list describing, for each cube face, which shape faces it comprises.
 
 > explodePainting :: [(Shape, [FacePaint])] -> [(CubeFace, [(Shape, [Bool])])]
 > explodePainting p = [(cf, filterPaint cf p) |
@@ -93,11 +93,11 @@ Applying that splitting function to the face assignments of each solution in tur
 >               (solution, n) <- zip (solutions' RotationOnly) [0..],
 >               (cf, fs) <- explodePainting (paintings solution)]
 > solutionIndex ((_, n), _, _, _) = n
+> bitRep        (_,      _, w, _) = w
 
 Of course, there's some chance that a cube face from one solution will cover exactly the same shape faces as a cube face from another solution (albeit probably with different orientations). Ideally, a set of cube faces would not contain any cube face that is also formed by a different solution.
 
 > distinctFaceInfos = nubBy ((==) `on` bitRep) faceInfos
-> bitRep (_, _, w, _) = w
 
 This reveals that there are only 1176 distinct cube faces. And even fewer will appear on only one solution. That's unsurprising in fact, because while symmetries of individual shapes are discounted, it's often the case that a solution will contain a subunit comprising two or more shapes, where the subunit has a symmetry. In such a solution, the subunit can be removed, transformed by its symmetry, and recombined, to give a new solution; any cube faces not affected by this will then be shared between the two solutions.
 
@@ -156,38 +156,33 @@ Eliminating this redundant information could be done earlier (at the face painti
 
 The following working form now contains, for each interesting solution face, a deduplicated representation of the shape faces that it uses, and also an Integer describing which of the other 618 interesting solution faces cannot appear in conjunction with it.
 
-> compressedFaceInfos = [(n, s, cf, compressRep b, p,
->                          conflicts (compressRep b)) |
->                         (n, (s, cf, b, p)) <- zip [0..] interestingFaceInfos]
->  where
->   conflicts :: Word64 -> Integer
->   conflicts b = foldl setBit 0
->                       [n |
->                        (n, b') <- zip [0..]
->                                       [compressRep $ bitRep fc |
->                                        fc <- interestingFaceInfos],
->                        b .&. b' /= 0]
+> compressedFaceInfos = [(n, s, cf, compressRep b, p) |
+>                        (n, ((s, _), cf, b, p)) <- zip [0..]
+>                                                       interestingFaceInfos]
 
 > targetComboSize = totalEverExternalFaces `div` 9
 
-> search partialSolution _ [] = if length partialSolution == targetComboSize
->                               then [partialSolution]
->                               else []
-> search partialSolution
->        impossibleInfos
->        (info@(n,_,_,b,_,conflicts):infos) =
->            if (testBit impossibleInfos n)
->            then withoutThisOne
->            else par withoutThisOne (pseq withThisOne (withoutThisOne ++ withThisOne))
+> search partialSolution n
+>        usedFaceBits
+>        infos =
+>     if length partialSolution >= targetComboSize
+>     then partialSolution:rest infos
+>     else rest infos
 >  where
->    withoutThisOne = search partialSolution
->                            impossibleInfos
->                            infos
->    withThisOne = search (info:partialSolution)
->                         (impossibleInfos .|. conflicts)
->                         infos
+>   rest [] = []
+>   rest (info@(_,_,_,faceBits,_):infos) =
+>     if (usedFaceBits .&. faceBits == 0)
+>     then withThisOne ++ withoutThisOne
+>     else withoutThisOne
+>    where
+>     withThisOne = search (info:partialSolution) (n+1)
+>                          (usedFaceBits .|. faceBits)
+>                          infos
+>     withoutThisOne = search partialSolution n
+>                             usedFaceBits
+>                             infos
 
-> run' = search [] (0::Integer)
+> run' = search [] 0 0
 > run = run' compressedFaceInfos
 
 > --chosenCombo = head run
@@ -226,7 +221,7 @@ Google's math mailing list for that suggestion.
 
 > implodeCombo combo = (cfToSolution, implodePainting nps)
 >  where (cfToSolution, nps) = unzip [((cf, solution), (n, solution, p)) |
->                                     (n, (solution, _), cf, _, p, _) <- combo]
+>                                     (n, solution, cf, _, p) <- combo]
 
 > comboMeshes cfToSolution shapeFaces = [(shape, mesh (painter faceInfos shape) shape) |
 >                                        (shape, faceInfos) <- shapeFaces]
@@ -241,21 +236,21 @@ Google's math mailing list for that suggestion.
 
 > implodePainting :: [(Int, Solution, [(Shape, [Bool])])]
 >                 -> [(Shape, [FaceMaterial])]
-> implodePainting explodedFacePaints = [
+> implodePainting explodedMarkings = [
 >     (shape, superpose paintGroups) |
 >     (shape, paintGroups) <- [head $ groupKey grp |
 >                              grp <- groupSortBy fst .
 >                              concat $ explodedFaceMaterials]]
 >  where
->   explodedFaceMaterials :: [[(Shape, [FaceMaterial])]]
->   explodedFaceMaterials = [kneadIndex (i, solution, shapeFacePaints) |
->                            (i, solution, shapeFacePaints) <- explodedFacePaints]
 >   superpose :: [[FaceMaterial]] -> [FaceMaterial]
 >   superpose = map msum . transpose
+>   explodedFaceMaterials :: [[(Shape, [FaceMaterial])]]
+>   explodedFaceMaterials = [attachMaterials (i, solution, shapeFacePaints) |
+>                            (i, solution, shapeFacePaints) <- explodedMarkings]
 
-> kneadIndex :: (Int, Solution, [(Shape, [Bool])]) ->
->                               [(Shape, [FaceMaterial])]
-> kneadIndex (cubeFaceNumber, solution, shapeFacePaints) = [
+> attachMaterials :: (Int, Solution, [(Shape, [Bool])]) ->
+>                                    [(Shape, [FaceMaterial])]
+> attachMaterials (cubeFaceNumber, solution, shapeFacePaints) = [
 >  (shape, [if paint then Just (cubeFaceNumber, recipe) else Nothing |
 >           paint <- facePaints]) |
 >  (shape, recipe, facePaints) <- merge solution shapeFacePaints]
