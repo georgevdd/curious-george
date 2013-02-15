@@ -264,20 +264,29 @@ A couple of small helper functions ease export to a Python-readable form.
 >  where 
 >   faceInfo = [(face, (matName, uvs recipe (faceVerts sign axis face))) |
 >               ((sign, axis, face), (matName, recipe)) <-
->               zip (allFaces $ defaultForm shape) (map pyMaterial faceMaterials)]
->   uvs recipe defaultFormFaceVerts = map (pyVec2 . (&* (1/3)) . (apply $ extract inSolutionFaceVerts))
+>               zip (allFaces $ defaultForm shape)
+>                   (map pyMaterial faceMaterials)]
+>   uvs recipe defaultFormFaceVerts = map (pyVec2 . (&* (1/3)) .
+>                                          (apply $
+>                                           extract inSolutionFaceVerts))
 >                                         inSolutionFaceVerts
->     where inSolutionFaceVerts = map (vApplyRecipe recipe) defaultFormFaceVerts
+>     where inSolutionFaceVerts = map (vApplyRecipe recipe)
+>                                     defaultFormFaceVerts
 >   apply :: (Vec3 -> Float, Vec3 -> Float) -> Vec3 -> Vec2
 >   apply (exU, exV) vec = Vec2 (exU vec) (exV vec)
+
+It's probably possible to simplify this mapping, but how is not obvious.:r
+
 >   extract [a,b,c,_] =  case pyVert uvNormal of
->                        (1, 0, 0) -> (_2, _3)
->                        (0, 1, 0) -> (_3, _1)
->                        (0, 0, 1) -> (_1, _2)
->                        (-1, 0, 0) -> (_2, _3)
->                        (0, -1, 0) -> (_3, _1)
->                        (0, 0, -1) -> (_1, _2)
+>                        ( 1,  0,  0) -> (p _2, p _3)
+>                        ( 0,  1,  0) -> (n _1, p _3)
+>                        ( 0,  0,  1) -> (p _2, n _1)
+>                        (-1,  0,  0) -> (p _2, n _3)
+>                        ( 0, -1,  0) -> (n _1, n _3)
+>                        ( 0,  0, -1) -> (p _2, p _1)
 >    where uvNormal = (b &- a) &^ (c &- b)
+>          n = ((3-) .)
+>          p = id
 
 > testMeshes = do
 >   let (solutionToCubeFace, shapeFaces) = implodeCombo chosenCombo
