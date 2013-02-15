@@ -131,7 +131,9 @@ So, 226 solutions have one unique face each. But two solutions have five unique 
 
 Although the cube faces between them cover 90 different shape faces, there is some redundant information being encoded, because a shape has several coplanar faces, and when a cube face is assigned to a shape face, it must be assigned to all coplanar faces on the same shape. For example, when a cube face contains one of the L-shaped sides of shape L, it must contain all four of the shape faces comprised by that L-shaped side.
 
-Eliminating this redundant information could be done earlier (at the face painting stage), but here will do just as well. By doing this, the cube-face-to-shape-face mapping can be reduced to just 42 bits per cube face, which is good because it will fit in a native 64-bit word now.
+Eliminating this redundant information could be done earlier (at the face painting stage) by comparing faces' geometry, but here will do just as well and keeps things simple, by avoiding the need for a representation of a mapping from cell face to shape face.
+
+By removing this redundancy, the cube-face-to-shape-face mapping can be reduced to just 42 bits per cube face, which is good because it will fit in a native 64-bit word now.
 
 > bitGroups = sortBy (comparing head) $
 >             dupBits $ map bitRep interestingFaceInfos
@@ -160,43 +162,101 @@ The following working form now contains, for each interesting solution face, a d
 >                        (n, ((s, _), cf, b, p)) <- zip [0..]
 >                                                       interestingFaceInfos]
 
+Each cube face needs 9 cell faces.
+
 > targetComboSize = totalEverExternalFaces `div` 9
+
+The above working provides the basis for a naive depth-first search for solutions.
 
 > search partialSolution n
 >        usedFaceBits
+>        bestN
 >        infos =
->     if length partialSolution >= targetComboSize
->     then partialSolution:rest infos
->     else rest infos
+>     if n > bestN
+>     then let (restSolutions, restBestN) = rest n infos
+>          in (partialSolution : restSolutions, max n restBestN)
+>     else rest bestN infos
 >  where
->   rest [] = []
->   rest (info@(_,_,_,faceBits,_):infos) =
+>   rest bestN' [] = ([], bestN')
+>   rest bestN' (info@(_,_,_,faceBits,_):infos) =
 >     if (usedFaceBits .&. faceBits == 0)
->     then withThisOne ++ withoutThisOne
->     else withoutThisOne
->    where
->     withThisOne = search (info:partialSolution) (n+1)
->                          (usedFaceBits .|. faceBits)
->                          infos
->     withoutThisOne = search partialSolution n
->                             usedFaceBits
->                             infos
+>     then let (withThisInfo, bestN'W) = search (info:partialSolution) (n+1)
+>                                               (usedFaceBits .|. faceBits)
+>                                               bestN'
+>                                               infos
+>              (withoutThisInfo, bestN'') = search partialSolution n
+>                                                  usedFaceBits
+>                                                  bestN'W
+>                                                  infos
+>          in (withThisInfo ++ withoutThisInfo, bestN'')
+>     else search partialSolution n
+>                 usedFaceBits
+>                 bestN'
+>                 infos
 
-> run' = search [] 0 0
-> run = run' compressedFaceInfos
+> run' minLength = search [] 0 0 (minLength-1)
+> run = run' targetComboSize compressedFaceInfos
 
-> --chosenCombo = head run
+> chosenCombo' = head $ fst run
 
-This was found very quickly with a linear constraint solver. Thanks to
-Google's math mailing list for that suggestion.
+Of course, this simple approach runs straight into the combinatrial explosion of having to choose ten elements from a set of 619; considering each possibility at a time is going to take longer than a lifetime. Luckily, there are other ways to attack the problem and once there's a solution it can be plugged in quickly.
+
+The following was found very quickly (that's to say, in less than a second) with a linear constraint solver. Thanks to Google's math mailing list for that suggestion.
 
 > chosenCombo = map (compressedFaceInfos!!)
 >                   [68, 139, 152, 208, 234, 336, 363, 386, 487, 513]
-> chosenComboIsValid = not $ null $ run' chosenCombo
+
+The naive search may not be efficient enough for finding a solution, but it's suitable for checkin a solution. This confirms that the selection made by the linear constraint solver does have the properties required.
+
+> chosenComboIsValid = (not . null . fst) $ run' targetComboSize chosenCombo
+
+Having found a set of ten solution faces that completely cover the shape faces, it's time to condense those faces into one data set that describes, for each shape face, which solution face it belongs in and where in the solution face it appears. That will be enough to asssign a texture to the shape face, and also texture coordinates.
+
+> type ShapeFaceData = Maybe (Int, Recipe)
+
+This elaborate list comprehension fits together all the exploded face information from earlier, into a single structure that collects the facts for each face of each shape.
+
+> implodePainting :: [(Int, Solution, [(Shape, [Bool])])]
+>                 -> [(Shape, [ShapeFaceData])]
+> implodePainting explodedMarkings = [
+>     (shape, superpose paintGroups) |
+>     (shape, paintGroups) <- [head $ groupKey grp |
+>                              grp <- groupSortBy fst .
+>                              concat $ explodedShapeFaceDatas]]
+>  where
+>   superpose :: [[ShapeFaceData]] -> [ShapeFaceData]
+>   superpose = map msum . transpose
+>   explodedShapeFaceDatas :: [[(Shape, [ShapeFaceData])]]
+>   explodedShapeFaceDatas = [attachMaterials (i, solution, shapeFacePaints) |
+>                            (i, solution, shapeFacePaints) <- explodedMarkings]
+
+The painting condensation logic relies on this helper function, whose purpose is to multiply solution face information out onto each face that appears on the solution face.
+
+> attachMaterials :: (Int, Solution, [(Shape, [Bool])]) ->
+>                                    [(Shape, [ShapeFaceData])]
+> attachMaterials (cubeFaceNumber, solution, shapeFacePaints) = [
+>  (shape, [if paint then Just (cubeFaceNumber, recipe) else Nothing |
+>           paint <- facePaints]) |
+>  (shape, recipe, facePaints) <- merge solution shapeFacePaints]
+>   where merge (Solution s) (facePaints) = [
+>          (checkEqual "Yikes!" shape shape', recipe, paints) |
+>          ((shape, recipe, _), (shape', paints) )<- zip s facePaints]
+
+> checkEqual msg s1 s2 = if s1 == s2 then s1 else error msg
+
+The solution information can now be split into two results.
+
+The first result is an association of solution to cube face, which allows for successive face solution animations to point the same way, even though different chosen solution faces have different orientations.
+
+The second result describes, for each face of each shape, which solution it belongs to (if any) and the position of the shape in that solution (if any), which is necessary for assigning UV coordinates.
+
+> implodeCombo combo = (solutionToCubeFace, implodePainting nsps)
+>  where (solutionToCubeFace, nsps) = unzip [((s, cf), (n, s, p)) |
+>                                            (n, s, cf, _, p) <- combo]
+
+A couple of small helper functions ease export to a Python-readable form.
 
 > pyVec2 (Vec2 x y) = (x, y)
-
-> type FaceMaterial = Maybe (Int, Recipe)
 > pyMaterial Nothing = ("xx", one)
 > pyMaterial (Just (n, recipe)) = (show n, recipe)
 
@@ -219,47 +279,13 @@ Google's math mailing list for that suggestion.
 >                        (0, 0, -1) -> (_1, _2)
 >    where uvNormal = (b &- a) &^ (c &- b)
 
-> implodeCombo combo = (cfToSolution, implodePainting nps)
->  where (cfToSolution, nps) = unzip [((cf, solution), (n, solution, p)) |
->                                     (n, solution, cf, _, p) <- combo]
-
-> comboMeshes cfToSolution shapeFaces = [(shape, mesh (painter faceInfos shape) shape) |
->                                        (shape, faceInfos) <- shapeFaces]
-
 > testMeshes = do
->   let (cfToSolution, shapeFaces) = implodeCombo chosenCombo
->   writeMeshes $ comboMeshes cfToSolution shapeFaces
+>   let (solutionToCubeFace, shapeFaces) = implodeCombo chosenCombo
+>   writeMeshes [(shape, mesh (painter faceInfos shape) shape) |
+>                (shape, faceInfos) <- shapeFaces]
 >   writeSolutions [Solution [(shape, recipe .*. toXaxis sign axis, bitmap) |
 >                             (shape, recipe, bitmap) <- s] |
->                   (CubeFace sign axis, Solution s) <- cfToSolution]
+>                   (Solution s, CubeFace sign axis) <- solutionToCubeFace]
 >   importIntoBlender
 
-> implodePainting :: [(Int, Solution, [(Shape, [Bool])])]
->                 -> [(Shape, [FaceMaterial])]
-> implodePainting explodedMarkings = [
->     (shape, superpose paintGroups) |
->     (shape, paintGroups) <- [head $ groupKey grp |
->                              grp <- groupSortBy fst .
->                              concat $ explodedFaceMaterials]]
->  where
->   superpose :: [[FaceMaterial]] -> [FaceMaterial]
->   superpose = map msum . transpose
->   explodedFaceMaterials :: [[(Shape, [FaceMaterial])]]
->   explodedFaceMaterials = [attachMaterials (i, solution, shapeFacePaints) |
->                            (i, solution, shapeFacePaints) <- explodedMarkings]
-
-> attachMaterials :: (Int, Solution, [(Shape, [Bool])]) ->
->                                    [(Shape, [FaceMaterial])]
-> attachMaterials (cubeFaceNumber, solution, shapeFacePaints) = [
->  (shape, [if paint then Just (cubeFaceNumber, recipe) else Nothing |
->           paint <- facePaints]) |
->  (shape, recipe, facePaints) <- merge solution shapeFacePaints]
->   where merge (Solution s) (facePaints) = [
->          (checkEqual "Yikes!" shape shape', recipe, paints) |
->          ((shape, recipe, _), (shape', paints) )<- zip s facePaints]
-
-> checkEqual msg s1 s2 = if s1 == s2 then s1 else error msg
-
-> --main = print chosenCombo
 > main = testMeshes
-> t = testMeshes
