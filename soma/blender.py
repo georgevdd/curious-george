@@ -1,15 +1,28 @@
-import math
-import mathutils as mu
-import bpy
 import io
+import math
+import os
+import sys
+
+import bpy
+import mathutils as mu
+
+if '.' not in sys.path:
+  sys.path.append('.')
+import gen_materials
 
 file = io.open
 
-frames_per_solution = 10
 
-images = [
-  '/Users/georgevdd/Pictures/oh_you.tiff'
-    ]
+FRAMES_PER_SOLUTION = 10
+
+
+def LinkMaterials():
+  with bpy.data.libraries.load(
+      os.path.join(os.getcwd(), gen_materials.OUTPUT_FILENAME),
+      link=True,
+      relative=True) as (data_from, data_to):
+    data_to.materials = data_from.materials
+
 
 # RGB components are in the range [0,1].
 #
@@ -27,35 +40,9 @@ def RawVertices(verts, other_data):
   else:
     return verts, other_data
 
+
 def ReadShapes():
   meshes = eval(file('shapes.txt').read())
-
-  materials = {}
-  for (_, (_, faces)) in meshes:
-    for i, (_, (mat_name, _)) in enumerate(faces):
-      if mat_name not in materials:
-        n = len(materials)
-
-        image_filename = images[n % len(images)]
-        image = bpy.data.images.new('Image%d' % n, width=256, height=256)
-        image.source = 'FILE'
-        image.filepath = image_filename
-
-        texture = bpy.data.textures.new('Texture%d' % n, type='IMAGE')
-        texture.image = image
-
-        material = bpy.data.materials.new(mat_name)
-        col = mu.Color((1,1,1))
-        col.s = (n %2 ) and 0.7 or 0.3
-        col.h = n / 11.0
-        col.v = (n % 2) and 0.3 or 1.0
-        material.diffuse_color = col
-        materials[mat_name] = material
-
-        texture_slot = material.texture_slots.add()
-        texture_slot.texture = texture
-        texture_slot.texture_coords = 'UV'
-        texture_slot.uv_layer = 'TheUV'
 
   for i, (name, (verts, faces)) in enumerate(meshes):
     poly = bpy.data.meshes.new(name)
@@ -80,7 +67,7 @@ def ReadShapes():
 
     poly.update()
 
-    uv_texture = poly.uv_textures.new('TheUV')
+    uv_texture = poly.uv_textures.new(gen_materials.UV_LAYER_NAME)
     for ((_, (_, uvs)), face, face_data) in zip(faces, poly.faces,
                                                 uv_texture.data):
       face_data.image = (poly.materials[face.material_index].
@@ -90,6 +77,7 @@ def ReadShapes():
 
     obj = bpy.data.objects.new(name, poly)
     bpy.context.scene.objects.link(obj)
+
 
 def ReadSolutions():
   solutions = eval(file('pysolutions.txt').read())
@@ -112,39 +100,12 @@ def ReadSolutions():
 
       for curve in action.fcurves:
         value = props[curve.data_path][curve.array_index]
-        curve.keyframe_points.insert(i * frames_per_solution, value)
+        curve.keyframe_points.insert(i * FRAMES_PER_SOLUTION, value)
 
-  bpy.context.scene.frame_end = i * frames_per_solution
-
-def ReadCameraKeyframes():
-  cam_keys = eval(file('camera_keys.txt').read())
-  cam = bpy.data.objects['Camera']
-  cam.animation_data_clear()
-
-  anim_data = cam.animation_data_create()
-  action = anim_data.action
-  if action is None:
-    action = (bpy.data.actions.get('Camera_Action') or
-              bpy.data.actions.new('Camera_Action'))
-    while (action.fcurves):
-      action.fcurves.remove(action.fcurves[0])
-    for prop in ['location', 'rotation_euler']:
-      for index in range(3):
-        action.fcurves.new(prop, index)
-    anim_data.action = action
-
-  for i, k in enumerate(cam_keys + cam_keys[:1]):
-    sign = {'P':-1,'N':1}[k[1]]
-    pos = {'X':[sign,0,0],'Y':[0,sign,0],'Z':[0,0,sign]}[k[0]]
-    rot = mu.Vector(pos).to_track_quat('Z','Y').to_euler()
-
-    props = {'rotation_euler': rot, 'location': [0,0,0] }
-
-    for curve in action.fcurves:
-      value = props[curve.data_path][curve.array_index]
-      curve.keyframe_points.insert(i * frames_per_solution, value)
+  bpy.context.scene.frame_end = i * FRAMES_PER_SOLUTION
 
 if __name__ == '__main__':
+  LinkMaterials()
   ReadShapes()
   ReadSolutions()
   bpy.ops.wm.save_as_mainfile(filepath="tenfold.blend", check_existing=False)
