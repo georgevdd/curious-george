@@ -11,9 +11,10 @@ if '.' not in sys.path:
 import gen_materials
 
 file = io.open
+pi = math.pi
 
 
-FRAMES_PER_SOLUTION = 10
+FRAMES_PER_SOLUTION = 100
 
 
 def LinkMaterials():
@@ -79,30 +80,67 @@ def ReadShapes():
     bpy.context.scene.objects.link(obj)
 
 
+def GetOrCreateAction(obj):
+  anim_data = obj.animation_data or obj.animation_data_create()
+  action = anim_data.action
+  if action is None:
+    action = bpy.data.actions.new('%s_Action' % obj.name)
+    for prop in 'location', 'rotation_euler':
+      for index in range(3):
+        action.fcurves.new(prop, index)
+    anim_data.action = action
+  return action
+
+
+def SetKeys(action, time, keys):
+  for curve in action.fcurves:
+    value = keys[curve.data_path][curve.array_index]
+    curve.keyframe_points.insert(time, value)
+
+
 def ReadSolutions():
   solutions = eval(file('pysolutions.txt').read())
+  dismantle_orders = eval(file('dismantle.txt').read())
+  for solution, order in zip(solutions, dismantle_orders):
+    d = dict(solution)
+    solution[:] = [(name, d[name]) for name in order]
 
-  for i, solution in enumerate(solutions + solutions[:1]):
-    for name, (rot, location) in solution:
-      props = {'rotation_euler': mu.Matrix(rot).to_euler(),
-               'location': location }
+  exploded_offset_h = mu.Vector((8, 0, 0))
+  exploded_offset_v = mu.Vector((0, 0, 3))
 
+  exploded_keys = {}
+  all_shapes = [s for (s, _) in solutions[0]]
+  for i, name in enumerate(all_shapes):
+    rot = mu.Euler((0, -pi/6, 2*pi*float(i)/len(all_shapes)))
+    m = mu.Matrix()
+    m.translation = exploded_offset_h
+    exploded_pos = rot.to_matrix().to_4x4() * m * mu.Vector((0, 0, 4))
+
+    exploded_keys[name] = {'rotation_euler': rot,
+                           'location': exploded_pos}
+
+  for i, solution in enumerate(solutions):
+    for j, (name, (rot, location)) in enumerate(solution):
+      base_time = i * FRAMES_PER_SOLUTION
+      solve_time = base_time + FRAMES_PER_SOLUTION/2.0
       obj = bpy.data.objects[name]
+      action = GetOrCreateAction(obj)
 
-      anim_data = obj.animation_data or obj.animation_data_create()
-      action = anim_data.action
-      if action is None:
-        action = bpy.data.actions.new('%s_Action' % name)
-        for prop in 'location', 'rotation_euler':
-          for index in range(3):
-            action.fcurves.new(prop, index)
-        anim_data.action = action
+      solved_keys = {'rotation_euler': mu.Matrix(rot).to_euler(),
+                     'location': mu.Vector(location)}
+      presolved_keys = {'rotation_euler': solved_keys['rotation_euler'],
+                        'location': solved_keys['location'] + exploded_offset_v}
+      solve_offset = j*5 + 10
 
-      for curve in action.fcurves:
-        value = props[curve.data_path][curve.array_index]
-        curve.keyframe_points.insert(i * FRAMES_PER_SOLUTION, value)
+      SetKeys(action, solve_time - (solve_offset + 10), exploded_keys[name])
+      SetKeys(action, solve_time - (solve_offset + 3), presolved_keys)
+      SetKeys(action, solve_time - solve_offset, solved_keys)
+      SetKeys(action, solve_time + solve_offset, solved_keys)
+      SetKeys(action, solve_time + (solve_offset + 3), presolved_keys)
+      SetKeys(action, solve_time + (solve_offset + 10), exploded_keys[name])
 
-  bpy.context.scene.frame_end = i * FRAMES_PER_SOLUTION
+  bpy.context.scene.frame_start = 0
+  bpy.context.scene.frame_end = i * FRAMES_PER_SOLUTION - 1
 
 if __name__ == '__main__':
   LinkMaterials()

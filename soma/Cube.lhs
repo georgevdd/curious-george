@@ -6,7 +6,7 @@
 > import qualified Data.Map as Map
 > import Data.Monoid
 > import Data.Ord (comparing)
-> import Data.Vect hiding (transpose)
+> import Data.Vect hiding (pointwise, transpose)
 > import Data.Word
 
 > data Shape = L | S | T | R | P | Q | Y'
@@ -55,10 +55,12 @@
 >     showSlice s = intercalate "  " [ showRow r | r <- s ]
 >     showRow r = "|" ++ r ++ "|"
 
+> pointwise :: (Char -> Char -> Char) -> Form -> Form -> Form
+> pointwise f (Form x) (Form y) = Form $ (zipWith . zipWith . zipWith) f x y
+
 > instance Monoid Form where
 >   mempty = Form $ (replicate 3 . replicate 3 . replicate 3) ' '
->   mappend (Form x) (Form y) = Form $ (zipWith . zipWith . zipWith)
->                                      superpose x y
+>   mappend = pointwise superpose
 >    where
 >     superpose ' ' ' ' = ' '
 >     superpose  a  ' ' =  a

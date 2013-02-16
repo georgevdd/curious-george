@@ -14,6 +14,7 @@
 
 > import Cube hiding (main)
 > import Mesh hiding (testMeshes)
+> import Dismantle
 > import Misc
 > import Word128
 
@@ -293,13 +294,21 @@ It's perhaps possible to simplify this mapping, but how is not obvious.
 >          n = ((3-) .)
 >          p = id
 
+This makes a particular face of a solution point along the positive X axis.
+
+> reorient :: Solution -> CubeFace -> Solution
+> reorient (Solution s) (CubeFace sign axis) =
+>     Solution [(shape, recipe .*. toXaxis sign axis, undefined) |
+>               (shape, recipe, bitmap) <- s]
+
 > testMeshes = do
 >   let (solutionToCubeFace, shapeFaces) = implodeCombo chosenCombo
+>       solutions = [reorient s cf | (s, cf) <- solutionToCubeFace]
 >   writeMeshes [(shape, mesh (painter faceInfos shape) shape) |
 >                (shape, faceInfos) <- shapeFaces]
->   writeSolutions [Solution [(shape, recipe .*. toXaxis sign axis, bitmap) |
->                             (shape, recipe, bitmap) <- s] |
->                   (Solution s, CubeFace sign axis) <- solutionToCubeFace]
+>   writeSolutions solutions
+>   writeFile "dismantle.txt" $ show [map show $ dismantleOrder s |
+>                                     s <- solutions]
 >   importIntoBlender
 
 > main = testMeshes
