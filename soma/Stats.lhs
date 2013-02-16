@@ -1,7 +1,6 @@
 > module Stats where
 
 > import Control.Monad
-> import Control.Parallel
 > import Data.Bits
 > import Data.Function
 > import Data.List
