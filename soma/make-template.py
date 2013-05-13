@@ -9,14 +9,14 @@ white=Color(1)
 
 p = Page(size='a4')
 
-outers = [Rectangle(height=400, width=400,
-                    nw=P(x*410, y*410),
-                    linewidth=1, bg=blue)
+outers = [Rectangle(height=400., width=400.,
+                    nw=P(x*410., y*410.), fg=None,
+                    bg=blue)
           for x in range(3)
           for y in range(3)]
-inners = [Rectangle(height=382, width=382,
-                    c = o.c,
-                    linewidth=1, bg=white)
+inners = [Rectangle(height=382., width=382.,
+                    c = o.c, fg=None,
+                    bg=white)
           for o in outers]
 
 g = Group(*(outers + inners),
@@ -24,13 +24,13 @@ g = Group(*(outers + inners),
 g.scale(0.1, p=g.c)
 
 g2 = g.copy()
-g2.scale(0.1, 1)
-g2.shear(1, 0)
+g2.scale(0.1, 1.)
+g2.shear(1., 0)
 g2.e = g.w
 
 g3 = g.copy()
-g3.scale(1, 0.1)
-g3.shear(-1, 90)
+g3.scale(1., 0.1)
+g3.shear(-1., 90.)
 g3.s = g.n
 
 p.append(g, g2, g3)
