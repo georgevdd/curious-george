@@ -13,8 +13,23 @@ import gen_images
 
 
 OUTPUT_DIR = 'build'
-OUTPUT_FILENAME = os.path.join(OUTPUT_DIR, 'materials.blend')
+OUTPUT_FILENAME = os.path.join(OUTPUT_DIR, 'materials1.blend')
 UV_LAYER_NAME = 'UV'
+
+
+def LinkMaterials():
+  lib_symlink = os.path.join(OUTPUT_DIR, 'lib')
+  if not os.path.islink(lib_symlink):
+    os.symlink('lib', lib_symlink)
+  
+  for path in [
+      'lib/materials.blend',
+    ]:
+    with bpy.data.libraries.load(
+        path,
+        link=True,
+        relative=True) as (data_from, data_to):
+      data_to.materials = data_from.materials
 
 
 def GenMaterial(i):
@@ -44,6 +59,11 @@ def GenMaterial(i):
     texture_slot.texture = texture
     texture_slot.texture_coords = 'UV'
     texture_slot.uv_layer = UV_LAYER_NAME
+    texture_slot.blend_type = 'MULTIPLY'
+
+    texture_slot = material.texture_slots.add()
+    texture_slot.texture = bpy.data.textures['Plywood']
+    texture_slot.mapping = 'CUBE'
     texture_slot.blend_type = 'ADD'
 
 
@@ -54,6 +74,7 @@ def GenMaterials():
 
 if __name__ == '__main__':
   subprocess.check_call(['mkdir', '-p', OUTPUT_DIR])
+  LinkMaterials() 
   GenMaterials()
   bpy.ops.wm.save_as_mainfile(filepath=OUTPUT_FILENAME, check_existing=False)
   bpy.ops.wm.quit_blender()

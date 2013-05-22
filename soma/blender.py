@@ -18,11 +18,14 @@ FRAMES_PER_SOLUTION = 100
 
 
 def LinkMaterials():
-  with bpy.data.libraries.load(
-      os.path.join(os.getcwd(), gen_materials.OUTPUT_FILENAME),
-      link=True,
-      relative=True) as (data_from, data_to):
-    data_to.materials = data_from.materials
+  for path in [
+    os.path.join(os.getcwd(), gen_materials.OUTPUT_FILENAME),
+    ]:
+    with bpy.data.libraries.load(
+        path,
+        link=True,
+        relative=True) as (data_from, data_to):
+      data_to.materials = data_from.materials
 
 
 # RGB components are in the range [0,1].
@@ -72,7 +75,7 @@ def ReadShapes():
     for ((_, (_, uvs)), face, face_data) in zip(faces, poly.faces,
                                                 uv_texture.data):
       face_data.image = (poly.materials[face.material_index].
-                         texture_slots[0].texture.image)
+                         texture_slots[1].texture.image)
       uvs_ = [list(uv) for uv in uvs]
       face_data.uv_raw = sum(uvs_, [])
 
@@ -94,35 +97,54 @@ def GetOrCreateAction(obj):
 
 def SetKeys(action, time, keys):
   for curve in action.fcurves:
-    value = keys[curve.data_path][curve.array_index]
+    key = keys.get(curve.data_path)
+    if key is None:
+      continue
+    value = key[curve.array_index]
     curve.keyframe_points.insert(time, value)
+
+
+STAGGER_FRAMES = 5
+SLIDE_FRAMES = 7
+ORIENT_FRAMES = 7
+SOLVED_FRAMES = 20
 
 
 def ReadSolutions():
   solutions = eval(file('pysolutions.txt').read())
   dismantle_orders = eval(file('dismantle.txt').read())
+  num_shapes = len(dismantle_orders[0])
   for solution, order in zip(solutions, dismantle_orders):
     d = dict(solution)
     solution[:] = [(name, d[name]) for name in order]
 
   exploded_offset_h = mu.Vector((8, 0, 0))
-  exploded_offset_v = mu.Vector((0, 0, 3))
+  exploded_offset_v = mu.Vector((0, 0, 4))
 
   exploded_keys = {}
   all_shapes = [s for (s, _) in solutions[0]]
   for i, name in enumerate(all_shapes):
-    rot = mu.Euler((0, -pi/6, 2*pi*float(i)/len(all_shapes)))
+    rot = mu.Euler((0,
+                    (i % 2 and -pi/6 or -pi/12),
+                    pi/2+pi*float(i)/len(all_shapes)))
     m = mu.Matrix()
     m.translation = exploded_offset_h
-    exploded_pos = rot.to_matrix().to_4x4() * m * mu.Vector((0, 0, 4))
+    exploded_pos = rot.to_matrix().to_4x4() * m * exploded_offset_v
 
     exploded_keys[name] = {'rotation_euler': rot,
-                           'location': exploded_pos}
+                           'location': exploded_pos
+                           }
+
+  frames_per_solution = SOLVED_FRAMES + 2 * (ORIENT_FRAMES +
+                                             SLIDE_FRAMES +
+                                             STAGGER_FRAMES * (num_shapes - 1))
+
+  print("Frames per solution:", frames_per_solution)
 
   for i, solution in enumerate(solutions):
     for j, (name, (rot, location)) in enumerate(solution):
-      base_time = i * FRAMES_PER_SOLUTION
-      solve_time = base_time + FRAMES_PER_SOLUTION/2.0
+      base_time = i * frames_per_solution
+      solve_time = base_time + frames_per_solution/2.0
       obj = bpy.data.objects[name]
       action = GetOrCreateAction(obj)
 
@@ -130,17 +152,18 @@ def ReadSolutions():
                      'location': mu.Vector(location)}
       presolved_keys = {'rotation_euler': solved_keys['rotation_euler'],
                         'location': solved_keys['location'] + exploded_offset_v}
-      solve_offset = j*5 + 10
 
-      SetKeys(action, solve_time - (solve_offset + 10), exploded_keys[name])
-      SetKeys(action, solve_time - (solve_offset + 3), presolved_keys)
+      solve_offset = (j * STAGGER_FRAMES) + (SOLVED_FRAMES / 2.0)
+
+      SetKeys(action, solve_time - (solve_offset + ORIENT_FRAMES + SLIDE_FRAMES), exploded_keys[name])
+      SetKeys(action, solve_time - (solve_offset + SLIDE_FRAMES), presolved_keys)
       SetKeys(action, solve_time - solve_offset, solved_keys)
       SetKeys(action, solve_time + solve_offset, solved_keys)
-      SetKeys(action, solve_time + (solve_offset + 3), presolved_keys)
-      SetKeys(action, solve_time + (solve_offset + 10), exploded_keys[name])
+      SetKeys(action, solve_time + (solve_offset + SLIDE_FRAMES), presolved_keys)
+      SetKeys(action, solve_time + (solve_offset + ORIENT_FRAMES + SLIDE_FRAMES), exploded_keys[name])
 
   bpy.context.scene.frame_start = 0
-  bpy.context.scene.frame_end = i * FRAMES_PER_SOLUTION - 1
+  bpy.context.scene.frame_end = i * frames_per_solution - 1
 
 if __name__ == '__main__':
   LinkMaterials()
