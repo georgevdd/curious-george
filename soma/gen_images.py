@@ -53,12 +53,27 @@ def GenImages():
     DrawBorder(image, BORDER_SIZE)
     image.save(FaceImageFilename(i))
 
+  xx = 128
+
+  image = Image.new('RGB', (xx, xx))
+  ImageDraw.Draw(image).rectangle(((0,0), (xx-1,xx-1)), fill='white')
+  image.save(os.path.join(OUTPUT_DIR, 'solid.png'))
+
+  image = Image.new('RGB', (xx, xx))
+  ImageDraw.Draw(image).rectangle(((0,0), (xx-1,xx/2-1)), fill='white')
+  image.save(os.path.join(OUTPUT_DIR, 'stripe_h.png'))
+
+  image = Image.new('RGB', (xx, xx))
+  d = ImageDraw.Draw(image)
+  d.polygon(((0,0), (0,xx/2-1), (xx/2-1,0)), fill='white')
+  d.polygon(((xx,0), (0,xx), (xx/2-1, xx), (xx, xx/2-1)), fill='white')
+  image.save(os.path.join(OUTPUT_DIR, 'stripe_d.png'))
 
 if __name__ == '__main__':
   # Defer imports till now, so that this module can be imported by Blender
   # scripts.
-  from PIL import ImageFont
-  from PIL import Image
-  from PIL import ImageDraw
+  import ImageFont
+  import Image
+  import ImageDraw
   subprocess.check_call(['mkdir', '-p', OUTPUT_DIR])
   GenImages()

@@ -32,6 +32,18 @@ def LinkMaterials():
       data_to.materials = data_from.materials
 
 
+STRIPES = ['solid', 'stripe_h', 'stripe_d']
+
+
+def GenStripes():
+  for x in STRIPES:
+    image = bpy.data.images.new(x, width=128, height=128)
+    image.source = 'FILE'
+    image.filepath = os.path.join(gen_images.OUTPUT_DIR, '%s.png' % x)
+    texture = bpy.data.textures.new(x.title(), type='IMAGE')
+    texture.image = image
+
+
 def GenMaterial(i):
     name = 'Face%s' % i
 
@@ -45,26 +57,37 @@ def GenMaterial(i):
     material = bpy.data.materials.new(name)
     material.use_fake_user = True
     material.preview_render_type = 'CUBE'
-    if i != 'X':
+    if i not in ('X', '9'):
       ii = int(i)
-      col = mu.Color((1,1,1))
-      col.s = (ii % 2) and 0.7 or 0.3
-      col.h = float(ii) / gen_images.NUM_EXTERNAL_FACES
-      col.v = (ii % 2) and 0.3 or 1.0
+      col = mu.Color((1,0,0))
+      col.h = (ii // 3) / 3
+      print(col.h)
+      stripe = STRIPES[ii % 3].title()
     else:
-      col = mu.Color((0.8, 0.2, 0.2))
-    material.diffuse_color = col
+      stripe = None
+
+    texture_slot = material.texture_slots.add()
+    texture_slot.texture = bpy.data.textures['Plywood']
+    texture_slot.mapping = 'CUBE'
+    texture_slot.blend_type = 'COLOR'
+
+    if stripe:
+      texture_slot = material.texture_slots.add()
+      texture_slot.texture = bpy.data.textures[stripe]
+      texture_slot.texture_coords = 'UV'
+      texture_slot.uv_layer = UV_LAYER_NAME
+      texture_slot.scale[0] = 6
+      texture_slot.scale[1] = 6
+      texture_slot.color = col
+      texture_slot.diffuse_color_factor = 0.75
+      texture_slot.use_rgb_to_intensity = True
+      texture_slot.blend_type = 'COLOR'
 
     texture_slot = material.texture_slots.add()
     texture_slot.texture = texture
     texture_slot.texture_coords = 'UV'
     texture_slot.uv_layer = UV_LAYER_NAME
-    texture_slot.blend_type = 'MULTIPLY'
-
-    texture_slot = material.texture_slots.add()
-    texture_slot.texture = bpy.data.textures['Plywood']
-    texture_slot.mapping = 'CUBE'
-    texture_slot.blend_type = 'ADD'
+    texture_slot.blend_type = 'LIGHTEN'
 
 
 def GenMaterials():
@@ -74,7 +97,8 @@ def GenMaterials():
 
 if __name__ == '__main__':
   subprocess.check_call(['mkdir', '-p', OUTPUT_DIR])
-  LinkMaterials() 
+  LinkMaterials()
+  GenStripes()
   GenMaterials()
   bpy.ops.wm.save_as_mainfile(filepath=OUTPUT_FILENAME, check_existing=False)
   bpy.ops.wm.quit_blender()
