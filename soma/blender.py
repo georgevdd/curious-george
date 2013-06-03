@@ -74,8 +74,8 @@ def ReadShapes():
     uv_texture = poly.uv_textures.new(gen_materials.UV_LAYER_NAME)
     for ((_, (_, uvs)), face, face_data) in zip(faces, poly.faces,
                                                 uv_texture.data):
-      face_data.image = (poly.materials[face.material_index].
-                         texture_slots[1].texture.image)
+      face_data.image = ([ts for ts in poly.materials[face.material_index].
+                          texture_slots if ts][-1].texture.image)
       uvs_ = [list(uv) for uv in uvs]
       face_data.uv_raw = sum(uvs_, [])
 
