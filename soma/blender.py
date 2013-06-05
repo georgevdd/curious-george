@@ -1,10 +1,14 @@
+# bpy.ops.script.python_file_run(filepath='/Users/georgevdd/georgevdd/src/soma/blender.py')
+
 import io
 import math
 import os
 import sys
 
+import bmesh
 import bpy
 import mathutils as mu
+geom = mu.geometry
 
 if '.' not in sys.path:
   sys.path.append('.')
@@ -15,6 +19,10 @@ pi = math.pi
 
 
 FRAMES_PER_SOLUTION = 100
+
+SIDE = 0.4
+THICKNESS = 0.009
+GAP = 0.010
 
 
 def LinkMaterials():
@@ -28,21 +36,21 @@ def LinkMaterials():
       data_to.materials = data_from.materials
 
 
-# RGB components are in the range [0,1].
-#
-# NMesh.materials is a list of Material objects. NMesh.faces[i].mat is the
-# index into the mesh's material list of the material to use for the i'th
-# face.
+def ForceRecalculateNormals(obj):
+  bpy.context.scene.objects.active = obj
+  bpy.ops.object.mode_set(mode='EDIT')
+  bpy.ops.mesh.select_all(action='SELECT')
+  bpy.ops.mesh.normals_make_consistent(inside=False)
+  bpy.ops.object.mode_set(mode='OBJECT')
 
-# When assigning to a face's vertex index list, a final zero is ignored.
-# So, when creating a square face, rotate its vertex list if necessary
-# to make sure vertex zero can be specified.
-def RawVertices(verts, other_data):
-  if len(verts) == 4 and verts[-1] == 0:
-    return ((verts[-1:] + verts[:-1]),
-            (other_data[-1:] + other_data[:-1]))
-  else:
-    return verts, other_data
+
+def ModifierSubtract(obj_lhs, obj_rhs):
+  bpy.context.scene.objects.active = obj_lhs
+  bpy.ops.object.modifier_add(type='BOOLEAN')
+  mod = obj_lhs.modifiers[-1]
+  mod.operation = 'DIFFERENCE'
+  mod.object = obj_rhs
+  bpy.ops.object.modifier_apply(modifier=mod.name)
 
 
 def ReadShapes():
@@ -50,10 +58,10 @@ def ReadShapes():
 
   for i, (name, (verts, faces)) in enumerate(meshes):
     poly = bpy.data.meshes.new(name)
+    mesh = bmesh.new()
 
-    poly.vertices.add(len(verts))
-    for j, v in enumerate(verts):
-      poly.vertices[j].co = v
+    for v in verts:
+      mesh.verts.new(mu.Vector(v) * (SIDE + GAP))
 
     mesh_materials = []
     for (_, (mat_name, uvs)) in faces:
@@ -62,25 +70,62 @@ def ReadShapes():
     for mat_name in mesh_materials:
       poly.materials.append(bpy.data.materials[mat_name])
 
-    poly.faces.add(len(faces))
     for j, (verts, (mat_name, uvs)) in enumerate(faces):
-      f = poly.faces[j]
-      f.vertices_raw, uvs_ = RawVertices(verts, uvs)
-      uvs[:] = uvs_
+      f = mesh.faces.new([mesh.verts[k] for k in verts])
       f.material_index = mesh_materials.index(mat_name)
 
-    poly.update()
+    uv_layer = mesh.loops.layers.uv.new()
+    tex_layer = mesh.faces.layers.tex.new()
+    for ((_, (_, uvs)), face) in zip(faces, mesh.faces):
+      face[tex_layer].image = ([ts for ts in poly.materials[face.material_index].
+                                texture_slots if ts][-1].texture.image)
+      for loop, uv in zip(face.loops, uvs):
+        loop[uv_layer].uv = uv
 
-    uv_texture = poly.uv_textures.new(gen_materials.UV_LAYER_NAME)
-    for ((_, (_, uvs)), face, face_data) in zip(faces, poly.faces,
-                                                uv_texture.data):
-      face_data.image = ([ts for ts in poly.materials[face.material_index].
-                          texture_slots if ts][-1].texture.image)
-      uvs_ = [list(uv) for uv in uvs]
-      face_data.uv_raw = sum(uvs_, [])
+    mesh.normal_update()
+    mesh.to_mesh(poly)
 
     obj = bpy.data.objects.new(name, poly)
     bpy.context.scene.objects.link(obj)
+
+    def CreateCuboidFaces(verts, dest_bmesh):
+      for axis in range(3):
+        for sign in 0, 1:
+          face_verts = [v for i, v in enumerate(verts)
+                        if (i & (1<<axis) != 0) == sign]
+          vs = [face_verts[i] for i in (sign and [0,1,3,2] or [0,2,3,1])]
+          dest_bmesh.faces.new(vs)
+
+    def EdgeDir(edge):
+      return (edge.verts[1].co - edge.verts[0].co) / edge.calc_length()
+
+    frame_mesh = bmesh.new()
+    R = THICKNESS + GAP/2
+    convex_edges = [edge for edge in mesh.edges if edge.calc_face_angle_signed() > 0.1]
+    for edge in convex_edges:
+      f1, f2 = edge.link_faces
+      edge_dir = EdgeDir(edge)
+      seg_verts = [frame_mesh.verts.new(x + (y + z) * R)
+                   for x in [edge.verts[0].co - edge_dir * R,
+                             edge.verts[1].co + edge_dir * R]
+                   for y in [f1.normal * sign for sign in (-1, 1)]
+                   for z in [f2.normal * sign for sign in (-1, 1)]]
+      CreateCuboidFaces(seg_verts, frame_mesh)
+
+    frame = bpy.data.meshes.new(name + '.frame')
+    frame_mesh.to_mesh(frame)
+    frame_obj = bpy.data.objects.new(frame.name, frame)
+    bpy.context.scene.objects.link(frame_obj)
+    ForceRecalculateNormals(frame_obj)
+
+    ModifierSubtract(obj, frame_obj)
+
+    frame_obj.select = True
+    bpy.ops.object.delete()
+    del frame_obj
+    del frame_mesh
+    del frame
+
 
 
 def GetOrCreateAction(obj):
@@ -118,8 +163,8 @@ def ReadSolutions():
     d = dict(solution)
     solution[:] = [(name, d[name]) for name in order]
 
-  exploded_offset_h = mu.Vector((8, 0, 0))
-  exploded_offset_v = mu.Vector((0, 0, 4))
+  exploded_offset_h = mu.Vector((8, 0, 0)) * (SIDE + GAP)
+  exploded_offset_v = mu.Vector((0, 0, 4)) * (SIDE + GAP)
 
   exploded_keys = {}
   all_shapes = [s for (s, _) in solutions[0]]
@@ -149,7 +194,7 @@ def ReadSolutions():
       action = GetOrCreateAction(obj)
 
       solved_keys = {'rotation_euler': mu.Matrix(rot).to_euler(),
-                     'location': mu.Vector(location)}
+                     'location': mu.Vector(location) * (SIDE + GAP)}
       presolved_keys = {'rotation_euler': solved_keys['rotation_euler'],
                         'location': solved_keys['location'] + exploded_offset_v}
 
