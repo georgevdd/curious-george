@@ -36,7 +36,68 @@ def LinkMaterials():
       data_to.materials = data_from.materials
 
 
+def CreateCuboidFaces(verts, dest_bmesh):
+  result = []
+  for axis in range(3):
+    for sign in 0, 1:
+      idxs = [(sign << axis) +
+              (bool(a & (1<<sign)) << ((axis+1) % 3)) +
+              (bool(a & (1<<(1-sign))) << ((axis+2) %3))
+              for a in [0,1,3,2]]
+      vs = [verts[i] for i in idxs]
+      result.append(dest_bmesh.faces.new(vs))
+  return result
+            
+
+def EdgeDir(edge):
+  return (edge.verts[1].co - edge.verts[0].co) / edge.calc_length()
+
+
+def GrooveEdges(obj, size):
+  bpy.context.scene.objects.active = obj
+  bpy.ops.object.mode_set(mode='EDIT')
+
+  obj_mesh = bmesh.from_edit_mesh(obj.data)
+  frame_mesh = bmesh.new()
+  convex_edges = [edge for edge in obj_mesh.edges if edge.calc_face_angle_signed() > 0.1]
+  for edge in convex_edges:
+    f1, f2 = edge.link_faces
+    edge_dir = EdgeDir(edge)
+    seg_verts = [frame_mesh.verts.new(x + (y + z) * size)
+                 for x in [edge.verts[0].co - edge_dir * size,
+                           edge.verts[1].co + edge_dir * size]
+                 for y in [f1.normal * sign for sign in (-1, 1)]
+                 for z in [f2.normal * sign for sign in (-1, 1)]]
+    CreateCuboidFaces(seg_verts, frame_mesh)
+
+  del obj_mesh
+
+  frame = bpy.data.meshes.new(obj.name + '.frame')
+  frame_mesh.to_mesh(frame)
+  frame_obj = bpy.data.objects.new(frame.name, frame)
+  bpy.context.scene.objects.link(frame_obj)
+  ForceRecalculateNormals(frame_obj)
+
+  ModifierSubtract(obj, frame_obj)
+
+  bpy.ops.object.mode_set(mode='OBJECT')
+  bpy.context.scene.objects.active = obj
+  bpy.ops.object.mode_set(mode='EDIT')
+  bpy.ops.mesh.select_all(action='SELECT')
+  bpy.ops.mesh.dissolve_limited()
+
+  bpy.ops.object.mode_set(mode='OBJECT')
+  bpy.ops.object.select_all(action='DESELECT')
+  frame_obj.select = True
+  bpy.context.scene.objects.active = frame_obj
+  bpy.ops.object.delete()
+  del frame_obj
+  del frame_mesh
+  del frame
+
+
 def ForceRecalculateNormals(obj):
+  bpy.ops.object.mode_set(mode='OBJECT')
   bpy.context.scene.objects.active = obj
   bpy.ops.object.mode_set(mode='EDIT')
   bpy.ops.mesh.select_all(action='SELECT')
@@ -88,44 +149,18 @@ def ReadShapes():
     obj = bpy.data.objects.new(name, poly)
     bpy.context.scene.objects.link(obj)
 
-    def CreateCuboidFaces(verts, dest_bmesh):
-      for axis in range(3):
-        for sign in 0, 1:
-          face_verts = [v for i, v in enumerate(verts)
-                        if (i & (1<<axis) != 0) == sign]
-          vs = [face_verts[i] for i in (sign and [0,1,3,2] or [0,2,3,1])]
-          dest_bmesh.faces.new(vs)
+    GrooveEdges(obj, THICKNESS+GAP/2)
 
-    def EdgeDir(edge):
-      return (edge.verts[1].co - edge.verts[0].co) / edge.calc_length()
+    bpy.context.scene.objects.active = obj
+    bpy.ops.object.mode_set(mode='EDIT')
+    mesh = bmesh.from_edit_mesh(obj.data)
 
-    frame_mesh = bmesh.new()
-    R = THICKNESS + GAP/2
-    convex_edges = [edge for edge in mesh.edges if edge.calc_face_angle_signed() > 0.1]
-    for edge in convex_edges:
-      f1, f2 = edge.link_faces
-      edge_dir = EdgeDir(edge)
-      seg_verts = [frame_mesh.verts.new(x + (y + z) * R)
-                   for x in [edge.verts[0].co - edge_dir * R,
-                             edge.verts[1].co + edge_dir * R]
-                   for y in [f1.normal * sign for sign in (-1, 1)]
-                   for z in [f2.normal * sign for sign in (-1, 1)]]
-      CreateCuboidFaces(seg_verts, frame_mesh)
-
-    frame = bpy.data.meshes.new(name + '.frame')
-    frame_mesh.to_mesh(frame)
-    frame_obj = bpy.data.objects.new(frame.name, frame)
-    bpy.context.scene.objects.link(frame_obj)
-    ForceRecalculateNormals(frame_obj)
-
-    ModifierSubtract(obj, frame_obj)
-
-    frame_obj.select = True
-    bpy.ops.object.delete()
-    del frame_obj
-    del frame_mesh
-    del frame
-
+    for face in mesh.faces:
+      if face.calc_area() > 0.1:
+        for loop in face.loops:
+          loop.vert.co -= face.normal * GAP/2
+    bmesh.update_edit_mesh(obj.data)
+    bpy.ops.object.mode_set(mode='OBJECT')
 
 
 def GetOrCreateAction(obj):
@@ -210,9 +245,12 @@ def ReadSolutions():
   bpy.context.scene.frame_start = 0
   bpy.context.scene.frame_end = i * frames_per_solution - 1
 
-if __name__ == '__main__':
+def main():
   LinkMaterials()
   ReadShapes()
   ReadSolutions()
   bpy.ops.wm.save_as_mainfile(filepath="tenfold.blend", check_existing=False)
   bpy.ops.wm.quit_blender()
+
+if __name__ == '__main__':
+  main()
