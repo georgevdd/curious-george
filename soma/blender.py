@@ -36,6 +36,15 @@ def LinkMaterials():
       data_to.materials = data_from.materials
 
 
+def LinkCorner():
+  path = os.path.join(os.getcwd(), 'lib/corner_assembly.blend')
+  group_name = 'Face Corner'
+  with bpy.data.libraries.load(path, link=True, relative=True) as (data_from, data_to):
+    data_to.groups.append(group_name)
+  corner_group = bpy.data.groups[group_name]
+  return corner_group
+
+
 def CreateCuboidFaces(verts, dest_bmesh):
   result = []
   for axis in range(3):
@@ -51,6 +60,10 @@ def CreateCuboidFaces(verts, dest_bmesh):
 
 def EdgeDir(edge):
   return (edge.verts[1].co - edge.verts[0].co) / edge.calc_length()
+
+
+def LoopDir(loop):
+  return (loop.link_loop_next.vert.co - loop.vert.co).normalized()
 
 
 def GrooveEdges(obj, size):
@@ -97,7 +110,8 @@ def GrooveEdges(obj, size):
 
 
 def ForceRecalculateNormals(obj):
-  bpy.ops.object.mode_set(mode='OBJECT')
+  if bpy.context.mode != 'OBJECT':
+    bpy.ops.object.mode_set(mode='OBJECT')
   bpy.context.scene.objects.active = obj
   bpy.ops.object.mode_set(mode='EDIT')
   bpy.ops.mesh.select_all(action='SELECT')
@@ -114,13 +128,14 @@ def ModifierSubtract(obj_lhs, obj_rhs):
   bpy.ops.object.modifier_apply(modifier=mod.name)
 
 
-def ReadShapes():
+def ReadShapes(corner_group):
   meshes = eval(file('shapes.txt').read())
 
   for i, (name, (verts, faces)) in enumerate(meshes):
+    bpy.ops.group.create(name=name)
     poly = bpy.data.meshes.new(name)
-    mesh = bmesh.new()
 
+    mesh = bmesh.new()
     for v in verts:
       mesh.verts.new(mu.Vector(v) * (SIDE + GAP))
 
@@ -149,18 +164,39 @@ def ReadShapes():
     obj = bpy.data.objects.new(name, poly)
     bpy.context.scene.objects.link(obj)
 
+    face_corners = []
+    for i, face in enumerate(mesh.faces):
+      for j, loop in enumerate(face.loops):
+        face_corners.append(((mu.Vector(loop.vert.co), -LoopDir(loop), face.normal), i, j))
+
     GrooveEdges(obj, THICKNESS+GAP/2)
 
     bpy.context.scene.objects.active = obj
+    bpy.ops.object.group_link(group=name)
+
     bpy.ops.object.mode_set(mode='EDIT')
     mesh = bmesh.from_edit_mesh(obj.data)
-
     for face in mesh.faces:
       if face.calc_area() > 0.1:
         for loop in face.loops:
           loop.vert.co -= face.normal * GAP/2
     bmesh.update_edit_mesh(obj.data)
     bpy.ops.object.mode_set(mode='OBJECT')
+
+    for corner, i, j in face_corners:
+      pos, x, z = corner
+      y = z.cross(x)
+      m = mu.Matrix((x, y, z)).transposed()
+      bpy.ops.object.empty_add()
+      empty = bpy.context.active_object
+      empty.name = '%s.%d.%d' % (name, i, j)
+      empty.rotation_euler = m.to_euler()
+      empty.location = pos - (x+y+z)*(GAP/2) - (x+y)*THICKNESS
+      empty.parent = obj
+      empty.empty_draw_size = 0.05
+      empty.dupli_type = 'GROUP'
+      empty.dupli_group = corner_group
+      bpy.ops.object.group_link(group=name)
 
 
 def GetOrCreateAction(obj):
@@ -247,7 +283,8 @@ def ReadSolutions():
 
 def main():
   LinkMaterials()
-  ReadShapes()
+  corner_group = LinkCorner()
+  ReadShapes(corner_group)
   ReadSolutions()
   bpy.ops.wm.save_as_mainfile(filepath="tenfold.blend", check_existing=False)
   bpy.ops.wm.quit_blender()
