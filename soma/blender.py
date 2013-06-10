@@ -56,7 +56,7 @@ def CreateCuboidFaces(verts, dest_bmesh):
       vs = [verts[i] for i in idxs]
       result.append(dest_bmesh.faces.new(vs))
   return result
-            
+
 
 def EdgeDir(edge):
   return (edge.verts[1].co - edge.verts[0].co) / edge.calc_length()
@@ -163,6 +163,8 @@ def ReadShapes(corner_group):
 
     obj = bpy.data.objects.new(name, poly)
     bpy.context.scene.objects.link(obj)
+
+    ForceRecalculateNormals(obj)
 
     face_corners = []
     for i, face in enumerate(mesh.faces):
