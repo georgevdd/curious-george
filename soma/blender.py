@@ -38,11 +38,11 @@ def LinkMaterials():
 
 def LinkCorner():
   path = os.path.join(os.getcwd(), 'lib/corner_assembly.blend')
-  group_name = 'Face Corner'
+  group_names = ['Face Corner', '3-Corner']
   with bpy.data.libraries.load(path, link=True, relative=True) as (data_from, data_to):
-    data_to.groups.append(group_name)
-  corner_group = bpy.data.groups[group_name]
-  return corner_group
+    data_to.groups += group_names
+  groups = [bpy.data.groups[group_name] for group_name in group_names]
+  return groups
 
 
 def CreateCuboidFaces(verts, dest_bmesh):
@@ -128,7 +128,7 @@ def ModifierSubtract(obj_lhs, obj_rhs):
   bpy.ops.object.modifier_apply(modifier=mod.name)
 
 
-def ReadShapes(corner_group):
+def ReadShapes(foot_group, corner_group):
   meshes = eval(file('shapes.txt').read())
 
   for i, (name, (verts, faces)) in enumerate(meshes):
@@ -169,7 +169,13 @@ def ReadShapes(corner_group):
     face_corners = []
     for i, face in enumerate(mesh.faces):
       for j, loop in enumerate(face.loops):
-        face_corners.append(((mu.Vector(loop.vert.co), -LoopDir(loop), face.normal), i, j))
+        face_corners.append(((loop.vert.co.copy(), -LoopDir(loop), face.normal), i, j))
+
+    three_corners = []
+    for i, vert in enumerate(mesh.verts):
+      if len(vert.link_faces) == 3:
+        three_corners.append((i, vert.co.copy(), tuple([face.normal.copy()
+                                                        for face in vert.link_faces])))
 
     GrooveEdges(obj, THICKNESS+GAP/2)
 
@@ -194,6 +200,21 @@ def ReadShapes(corner_group):
       empty.name = '%s.%d.%d' % (name, i, j)
       empty.rotation_euler = m.to_euler()
       empty.location = pos - (x+y+z)*(GAP/2) - (x+y)*THICKNESS
+      empty.parent = obj
+      empty.empty_draw_size = 0.05
+      empty.dupli_type = 'GROUP'
+      empty.dupli_group = foot_group
+      bpy.ops.object.group_link(group=name)
+
+    for i, pos, axes in three_corners:
+      rot = mu.Matrix(axes).transposed()
+      if rot.is_negative:
+        rot = mu.Matrix((axes[0], axes[2], axes[1])).transposed()
+      bpy.ops.object.empty_add()
+      empty = bpy.context.active_object
+      empty.name = '%s.3-corner.%d' % (name, i)
+      empty.rotation_euler = rot.to_euler()
+      empty.location = pos - rot*mu.Vector((1,1,1))*GAP/2
       empty.parent = obj
       empty.empty_draw_size = 0.05
       empty.dupli_type = 'GROUP'
@@ -285,8 +306,8 @@ def ReadSolutions():
 
 def main():
   LinkMaterials()
-  corner_group = LinkCorner()
-  ReadShapes(corner_group)
+  groups = LinkCorner()
+  ReadShapes(*groups)
   ReadSolutions()
   bpy.ops.wm.save_as_mainfile(filepath="tenfold.blend", check_existing=False)
   bpy.ops.wm.quit_blender()
