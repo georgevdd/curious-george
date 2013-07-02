@@ -1,0 +1,7 @@
+build/
+*.blend1
+*.blend2
+*.o
+*.hi
+*~
+__pycache__/
