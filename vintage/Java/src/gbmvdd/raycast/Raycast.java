@@ -63,35 +63,35 @@ public class Raycast extends JPanel implements KeyListener
 
 		switch( ev.getKeyCode() )
 		{
-			case ev.VK_NUMPAD4:
+			case KeyEvent.VK_NUMPAD4:
 				adjustViewDir( 0, -angleIncrement, 0 );
 				break;
-			case ev.VK_NUMPAD6:
+			case KeyEvent.VK_NUMPAD6:
 				adjustViewDir( 0, angleIncrement, 0 );
 				break;
-			case ev.VK_NUMPAD2:
+			case KeyEvent.VK_NUMPAD2:
 				adjustViewDir( -angleIncrement, 0, 0 );
 				break;
-			case ev.VK_NUMPAD8:
+			case KeyEvent.VK_NUMPAD8:
 				adjustViewDir( angleIncrement, 0, 0 );
 				break;
-			case ev.VK_NUMPAD7:
+			case KeyEvent.VK_NUMPAD7:
 				adjustViewDir( 0, 0, angleIncrement );
 				break;
-			case ev.VK_NUMPAD9:
+			case KeyEvent.VK_NUMPAD9:
 				adjustViewDir( 0, 0, -angleIncrement );
 				break;
-			case ev.VK_NUMPAD5:
+			case KeyEvent.VK_NUMPAD5:
 				setViewDir( 0, 0, 0 );
 				break;
 
-			case ev.VK_ADD:
+			case KeyEvent.VK_ADD:
 				if( ev.isShiftDown() )
 					setYFOV( getYFOV() + fovIncrement );
 				else
 					setXFOV( getXFOV() + fovIncrement );
 				break;
-			case ev.VK_SUBTRACT:
+			case KeyEvent.VK_SUBTRACT:
 				if( ev.isShiftDown() )
 					setYFOV( getYFOV() - fovIncrement );
 				else
@@ -161,6 +161,7 @@ public class Raycast extends JPanel implements KeyListener
 		}
 
 		offScreen.setRGB( 0, 0, rect.width, rect.height, pix, (rect.x + rect.y * w), w );
+		g.drawImage(offScreen, 0, 0, this);
 	}
 
 	public int getRayColour( double x, double y, double z )
