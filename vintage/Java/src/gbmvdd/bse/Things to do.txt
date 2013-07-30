@@ -1,0 +1,20 @@
+Write the UI.
+
+Implement the remaining dummy methods from AST in ParseTree. This would allow TreeParsers to walk over ParseTrees, which would make implementing a pretty-printer very simple.
+
+Work out how to include a BitSet in the parser that would give stop-characters for parsing. These would cause panic-mode error recovery to end.
+
+Make sure that BSEJavaCodeGenerator ignores ^ and ! when generating grammars.
+
+Done things
+-----------
+
+Make BSEJavaCodeGenerator write all necessary extra methods into the output parser so they don't need to be in the grammar.
+
+Include a similar BitSet in the Lexer that indicates which tokens are whitespace. It is not possible to just mark the tokens as SKIP and adapt WhitespaceCollapsingTokenFilter to treat SKIP tokens as hidden - this will cause the Lexer to discard them before they ever get there.
+
+Add methods to ASTChild: getNextSibling(). This needs to be done for (hidden) tokens as well as for ASTs.
+
+Rewrite AST so that it implements the ANTLR AST interface but is not a subclass of CommonASTWithHiddenTokens. Then the token and firstChild references can be merged into a single reference to an ASTChild, which could be either a token chain or another AST.
+
+Rewrite BSEToken so that it is no longer a subclass of CommonHiddenStreamToken and its reference to preceding hidden tokens points to the start of the chain, not the end. Moving within the chain should mimic the AST methods - getNextSibling() &c.

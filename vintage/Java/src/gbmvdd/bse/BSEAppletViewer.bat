@@ -1,0 +1,1 @@
+appletviewer file:\\\C:\Projects\Java\Jars\BSEApplet.html

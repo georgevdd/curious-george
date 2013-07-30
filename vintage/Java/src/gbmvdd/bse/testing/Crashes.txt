@@ -1,0 +1,3 @@
+The following text sequences crash the lexer/parser:
+
+<none known>

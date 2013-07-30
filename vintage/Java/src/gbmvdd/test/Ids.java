@@ -1,0 +1,5 @@
+package gbmvdd.test;
+
+class @
+{
+}

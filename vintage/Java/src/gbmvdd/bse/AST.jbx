@@ -1,0 +1,9 @@
+[PropertyInfo]
+hiddenBefore,Token,false,false, , ,true,<default>
+token,CommonHiddenStreamToken,false,false, , ,false,<default>
+tokenStream,TokenStream,false,false, , ,true,<default>
+[IconNames]
+
+
+
+

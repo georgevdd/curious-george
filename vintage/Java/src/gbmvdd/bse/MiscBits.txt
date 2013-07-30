@@ -1,0 +1,1756 @@
+	private HashMap ruleIDs = new HashMap();
+
+	private void assignNumbersToRules()
+	{
+		Enumeration ids = grammar.rules.elements();
+		int ruleNum=0;
+		while ( ids.hasMoreElements() )
+		{
+			GrammarSymbol sym = (GrammarSymbol)ids.nextElement();
+			if ( sym instanceof RuleSymbol )
+			{
+				RuleSymbol rs = (RuleSymbol)sym;
+				ruleIDs.put( sym, new Integer( ruleNum++ ) );
+			}
+			exitIfError();
+		}
+	}
+
+
+
+
+
+
+	public BSEJavaCodeGenerator()
+	{
+		super();
+	}
+
+
+
+
+
+
+
+/////////////////////////////////////////////////////
+// gen(ParserGrammar) ///////////////////////////////
+/////////////////////////////////////////////////////
+	/** Generate the parser Java file */
+	public void gen(ParserGrammar g) throws IOException {
+
+		// if debugging, set up a new vector to keep track of sempred
+		//   strings for this grammar
+		if (g.debuggingOutput)
+			semPreds = new Vector();
+
+		setGrammar(g);
+		if (!(grammar instanceof ParserGrammar))
+		{
+			tool.panic("Internal error generating parser");
+		}
+
+		// Open the output stream for the parser and set the currentOutput
+		// SAS: moved file setup so subclass could do it (for VAJ interface)
+		setupOutput(grammar.getClassName());
+
+		genAST = grammar.buildAST;
+
+		tabs = 0;
+
+		// Generate the header common to all output files.
+		genHeader();
+		// Do not use printAction because we assume tabs==0
+		println(behavior.getHeaderAction(""));
+
+		// Generate header for the parser
+		println("import antlr.TokenBuffer;");
+		println("import antlr.TokenStreamException;");
+		println("import antlr.TokenStreamIOException;");
+		println("import antlr.ANTLRException;");
+		println("import antlr." + grammar.getSuperClass() + ";");
+		println("import antlr.Token;");
+		println("import antlr.TokenStream;");
+		println("import antlr.RecognitionException;");
+		println("import antlr.NoViableAltException;");
+		println("import antlr.MismatchedTokenException;");
+		println("import antlr.SemanticException;");
+		println("import antlr.ParserSharedInputState;");
+		println("import antlr.collections.impl.BitSet;");
+		println("import antlr.collections.AST;");
+		println("import antlr.ASTPair;");
+		println("import antlr.collections.impl.ASTArray;");
+
+		// Output the user-defined parser preamble
+		println(grammar.preambleAction.getText());
+
+		// Generate parser class definition
+		String sup=null;
+		if ( grammar.superClass != null )
+			sup = grammar.superClass;
+		else
+			sup = "antlr." + grammar.getSuperClass();
+
+		// print javadoc comment if any
+		if ( grammar.comment!=null )
+		{
+			_println(grammar.comment);
+		}
+
+		println("public class " + grammar.getClassName() + " extends "+sup);
+		println("	   implements " + grammar.tokenManager.getName() + TokenTypesFileSuffix);
+
+		Token tsuffix = (Token)grammar.options.get("classHeaderSuffix");
+		if ( tsuffix != null )
+		{
+			String suffix = Tool.stripFrontBack(tsuffix.getText(),"\"","\"");
+			if ( suffix != null )
+			print(", "+suffix);	// must be an interface name for Java
+		}
+		println(" {");
+
+		// set up an array of all the rule names so the debugger can
+		// keep track of them only by number -- less to store in tree...
+		if (grammar.debuggingOutput)
+		{
+			println("private static final String _ruleNames[] = {");
+
+			Enumeration ids = grammar.rules.elements();
+			int ruleNum=0;
+			while ( ids.hasMoreElements() )
+			{
+				GrammarSymbol sym = (GrammarSymbol) ids.nextElement();
+				if ( sym instanceof RuleSymbol)
+					println("\t\""+((RuleSymbol)sym).getId()+"\",");
+			}
+			println("};");
+		}
+
+		// Generate user-defined parser class members
+		print(processActionForTreeSpecifiers(grammar.classMemberAction.getText(), 0, currentRule, null));
+
+		// Generate parser class constructor from TokenBuffer
+		println("");
+		println("protected " + grammar.getClassName() + "(TokenBuffer tokenBuf, int k) {");
+		println("\tsuper(tokenBuf,k);");
+		println("\ttokenNames = _tokenNames;");
+		// if debugging, set up arrays and call the user-overridable
+		//   debugging setup method
+		if ( grammar.debuggingOutput )
+		{
+			println("\truleNames  = _ruleNames;");
+			println("\tsemPredNames = _semPredNames;");
+			println("\tsetupDebugging(tokenBuf);");
+		}
+		println("}");
+		println("");
+
+		println("public " + grammar.getClassName() + "(TokenBuffer tokenBuf) {");
+		println("\tthis(tokenBuf," + grammar.maxk + ");");
+		println("}");
+		println("");
+
+
+		/////////////////////////
+		// Constructors /////////
+		/////////////////////////
+
+		// Generate parser class constructor from TokenStream
+		println("protected " + grammar.getClassName()+"(TokenStream lexer, int k) {");
+		println("\tsuper(lexer,k);");
+		println("\ttokenNames = _tokenNames;");
+
+		// if debugging, set up arrays and call the user-overridable
+		//   debugging setup method
+		if ( grammar.debuggingOutput )
+		{
+			println("\truleNames  = _ruleNames;");
+			println("\tsemPredNames = _semPredNames;");
+			println("\tsetupDebugging(lexer);");
+		}
+		println("}");
+		println("");
+
+		println("public " + grammar.getClassName()+"(TokenStream lexer) {");
+		println("\tthis(lexer," + grammar.maxk + ");");
+		println("}");
+		println("");
+
+		println("public " + grammar.getClassName()+"(ParserSharedInputState state) {");
+		println("\tsuper(state," + grammar.maxk + ");");
+		println("\ttokenNames = _tokenNames;");
+		println("}");
+		println("");
+
+		/////////////////////////
+		// End of constructors //
+		/////////////////////////
+
+
+
+		//////////////////////////
+		// Rule generation ///////
+		//////////////////////////
+
+		// Assign numberic IDs to rules
+		assignNumbersToRules();
+
+		// Generate code for each rule in the grammar
+		Enumeration ids = grammar.rules.elements();
+		int ruleNum=0;
+		while ( ids.hasMoreElements() )
+		{
+			GrammarSymbol sym = (GrammarSymbol) ids.nextElement();
+			if ( sym instanceof RuleSymbol)
+			{
+				RuleSymbol rs = (RuleSymbol)sym;
+				genRule(rs, rs.references.size()==0, ruleNum++);
+			}
+			exitIfError();
+		}
+
+		// Generate the token names
+		genTokenStrings();
+
+		// Generate the bitsets used throughout the grammar
+		genBitsets(bitsetsUsed, grammar.tokenManager.maxTokenType());
+
+		// Generate the semantic predicate map for debugging
+		if (grammar.debuggingOutput)
+			genSemPredMap();
+
+		// Close class definition
+		println("");
+		println("}");
+
+		// Close the parser output stream
+		currentOutput.close();
+		currentOutput = null;
+	}
+
+/////////////////////////////////////////
+// End of gen(ParserGrammar) ////////////
+/////////////////////////////////////////
+
+
+
+
+/////////////////////////
+// genRule //////////////
+/////////////////////////
+
+	/** Gen a named rule block.
+	 * ASTs are generated for each element of an alternative unless
+	 * the rule or the alternative have a '!' modifier.
+	 *
+	 * If an alternative defeats the default tree construction, it
+	 * must set <rule>_AST to the root of the returned AST.
+	 *
+	 * Each alternative that does automatic tree construction, builds
+	 * up root and child list pointers in an ASTPair structure.
+	 *
+	 * A rule finishes by setting the returnAST variable from the
+	 * ASTPair.
+	 *
+	 * @param rule The name of the rule to generate
+	 * @param startSymbol true if the rule is a start symbol (i.e., not referenced elsewhere)
+	*/
+	public void genRule(RuleSymbol s, boolean startSymbol, int ruleNum)
+	{
+		if( !(grammar instanceof ParserGrammar) )
+		{
+			super.genRule( s, startSymbol, ruleNum );
+			return;
+		}
+
+		tabs=1;
+		if ( DEBUG_CODE_GENERATOR ) System.out.println("genRule("+ s.getId() +")");
+		if ( !s.isDefined() ) {
+			tool.error("undefined rule: "+ s.getId());
+			return;
+		}
+
+		// Generate rule return type, name, arguments
+		RuleBlock rblk = s.getBlock();
+		currentRule = rblk;
+		currentASTResult = s.getId();
+
+		// print javadoc comment if any
+		if ( s.comment!=null )
+		{
+			_println(s.comment);
+		}
+
+		// Add a comment giving the method name
+		_print( "// " + s.getId() );
+
+		if( rblk.returnAction != null )
+			tool.error( "actions not allowed (yet)!" );
+		if (rblk.argAction != null)
+			tool.error( "arguments to rules not allowed (yet)!" );
+		if (rblk.returnAction != null)
+			tool.error( "actions not allowed (yet)!" );
+
+		genBlockPreamble(rblk);
+		println("");
+
+		// Search for an unlabeled exception specification attached to the rule
+		ExceptionSpec unlabeledUserSpec = rblk.findExceptionSpec("");
+
+		// Generate try block around the entire rule for  error handling
+		if (unlabeledUserSpec != null || rblk.getDefaultErrorHandler() ) {
+			println("try {	  // for error handling");
+			tabs++;
+		}
+
+		// Generate the alternatives
+		if ( rblk.alternatives.size()==1 ) {
+			// One alternative -- use simple form
+			Alternative alt = rblk.getAlternativeAt(0);
+			String pred = alt.semPred;
+			if ( pred!=null )
+			genSemPred(pred, currentRule.line);
+			if (alt.synPred != null) {
+			tool.warning(
+					 "Syntactic predicate ignored for single alternative",
+					 grammar.getFilename(), alt.synPred.getLine()
+					 );
+			}
+			genAlt(alt, rblk);
+		}
+		else {
+			// Multiple alternatives -- generate complex form
+			boolean ok = grammar.theLLkAnalyzer.deterministic(rblk);
+
+			JavaBlockFinishingInfo howToFinish = genCommonBlock(rblk, false);
+			genBlockFinish(howToFinish, throwNoViable);
+		}
+
+		// Generate catch phrase for error handling
+		if (unlabeledUserSpec != null || rblk.getDefaultErrorHandler() ) {
+			// Close the try block
+			tabs--;
+			println("}");
+		}
+
+		// Generate user-defined or default catch phrases
+		if (unlabeledUserSpec != null) {
+			genErrorHandler(unlabeledUserSpec);
+		}
+		else if (rblk.getDefaultErrorHandler()) {
+			// Generate default catch phrase
+			println("catch (" + exceptionThrown + " ex) {");
+			tabs++;
+			// Generate code to handle error if not guessing
+			if (grammar.hasSyntacticPredicate) {
+			println("if (inputState.guessing==0) {");
+			tabs++;
+			}
+			println("reportError(ex);");
+			if ( !(grammar instanceof TreeWalkerGrammar) ) {
+					// Generate code to consume until token in k==1 follow set
+			Lookahead follow = grammar.theLLkAnalyzer.FOLLOW(1, rblk.endNode);
+			String followSetName = getBitsetName(markBitsetForGen(follow.fset));
+			println("consume();");
+			println("consumeUntil(" + followSetName + ");");
+			} else {
+					// Just consume one token
+			println("if (_t!=null) {_t = _t.getNextSibling();}");
+			}
+			if (grammar.hasSyntacticPredicate) {
+			tabs--;
+					// When guessing, rethrow exception
+			println("} else {");
+			println("\tthrow ex;");
+			println("}");
+			}
+			// Close catch phrase
+			tabs--;
+			println("}");
+		}
+
+		// Squirrel away the AST "return" value
+		if (grammar.buildAST) {
+			println("returnAST = " + s.getId() + "_AST;");
+		}
+
+		// Set return tree value for tree walkers
+		if ( grammar instanceof TreeWalkerGrammar ) {
+			println("_retTree = _t;");
+		}
+
+		// Generate literals test for lexer rules so marked
+		if (rblk.getTestLiterals()) {
+			if ( s.access.equals("protected") ) {
+			genLiteralsTestForPartialToken();
+			}
+			else {
+			genLiteralsTest();
+			}
+		}
+
+		// Gen the return statement if there is one (lexer has hard-wired return action)
+		if (rblk.returnAction != null)
+		{
+			println("return " + extractIdOfAction(rblk.returnAction, rblk.getLine()) + ";");
+		}
+	}
+
+///////////////////////////
+// End of genRule() ///////
+///////////////////////////
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	/** Generate code for the given grammar element.
+	 * @param blk The "x|y|z|..." block to generate
+	 */
+	public void gen(AlternativeBlock blk)
+	{
+		if ( DEBUG_CODE_GENERATOR ) System.out.println("gen("+blk+")");
+		println("{");
+		genBlockPreamble(blk);
+
+		// Tell AST generation to build subrule result
+		String saveCurrentASTResult = currentASTResult;
+		if (blk.getLabel() != null) {
+			currentASTResult = blk.getLabel();
+		}
+
+		boolean ok = grammar.theLLkAnalyzer.deterministic(blk);
+
+		JavaBlockFinishingInfo howToFinish = genCommonBlock(blk, true);
+		genBlockFinish(howToFinish, throwNoViable);
+
+		println("}");
+
+		// Restore previous AST generation
+		currentASTResult = saveCurrentASTResult;
+	}
+
+	/** Generate code for the given grammar element.
+	 * @param blk The block-end element to generate.  Block-end
+	 * elements are synthesized by the grammar parser to represent
+	 * the end of a block.
+	 */
+	public void gen(BlockEndElement end)
+	{
+		if ( DEBUG_CODE_GENERATOR ) System.out.println("genRuleEnd("+end+")");
+	}
+
+	/** Generate code for the given grammar element.
+	 * @param blk The character literal reference to generate
+	 */
+	public void gen(CharLiteralElement atom)
+	{
+		if ( DEBUG_CODE_GENERATOR ) System.out.println("genChar("+atom+")");
+
+		if ( atom.getLabel()!=null )
+		{
+			println(atom.getLabel() + " = " + lt1Value + ";");
+		}
+
+		boolean oldsaveText = saveText;
+		saveText = saveText && atom.getAutoGenType()==GrammarElement.AUTO_GEN_NONE;
+		genMatch(atom);
+		saveText = oldsaveText;
+	}
+
+	/** Generate code for the given grammar element.
+	 * @param blk The character-range reference to generate
+	 */
+	public void gen(CharRangeElement r)
+	{
+		if ( r.getLabel()!=null  && syntacticPredLevel == 0) {
+			println(r.getLabel() + " = " + lt1Value + ";");
+		}
+		println("matchRange("+r.beginText+","+r.endText+");");
+	}
+
+	/** Generate code for the given grammar element.
+	 * @param blk The (...)+ block to generate
+	 */
+	public void gen(OneOrMoreBlock blk)
+	{
+		if ( DEBUG_CODE_GENERATOR ) System.out.println("gen+("+blk+")");
+		String label;
+		String cnt;
+		println("{");
+		genBlockPreamble(blk);
+		if ( blk.getLabel() != null ) {
+			cnt = "_cnt_"+blk.getLabel();
+		}
+		else {
+			cnt = "_cnt" + blk.ID;
+		}
+		println("int "+cnt+"=0;");
+		if ( blk.getLabel() != null ) {
+			label = blk.getLabel();
+		}
+		else {
+			label = "_loop" + blk.ID;
+		}
+		println(label+":");
+		println("do {");
+		tabs++;
+
+		// Tell AST generation to build subrule result
+		String saveCurrentASTResult = currentASTResult;
+		if (blk.getLabel() != null) {
+			currentASTResult = blk.getLabel();
+		}
+
+		boolean ok = grammar.theLLkAnalyzer.deterministic(blk);
+
+		// generate exit test if greedy set to false
+		// and an alt is ambiguous with exit branch
+		// or when lookahead derived purely from end-of-file
+		// Lookahead analysis stops when end-of-file is hit,
+		// returning set {epsilon}.  Since {epsilon} is not
+		// ambig with any real tokens, no error is reported
+		// by deterministic() routines and we have to check
+		// for the case where the lookahead depth didn't get
+		// set to NONDETERMINISTIC (this only happens when the
+		// FOLLOW contains real atoms + epsilon).
+		boolean generateNonGreedyExitPath = false;
+		int nonGreedyExitDepth = grammar.maxk;
+
+		if ( !blk.greedy &&
+			 blk.exitLookaheadDepth<=grammar.maxk &&
+			 blk.exitCache[blk.exitLookaheadDepth].containsEpsilon() )
+			{
+			generateNonGreedyExitPath = true;
+			nonGreedyExitDepth = blk.exitLookaheadDepth;
+			}
+		else if ( !blk.greedy &&
+			  blk.exitLookaheadDepth==LLkGrammarAnalyzer.NONDETERMINISTIC )
+			{
+			generateNonGreedyExitPath = true;
+			}
+
+		// generate exit test if greedy set to false
+		// and an alt is ambiguous with exit branch
+		if ( generateNonGreedyExitPath ) {
+			if ( DEBUG_CODE_GENERATOR ) {
+			System.out.println("nongreedy (...)+ loop; exit depth is "+
+					   blk.exitLookaheadDepth);
+			}
+			String predictExit =
+			getLookaheadTestExpression(blk.exitCache,
+						   nonGreedyExitDepth);
+			println("// nongreedy exit test");
+			println("if ( "+cnt+">=1 && "+predictExit+") break "+label+";");
+		}
+
+		JavaBlockFinishingInfo howToFinish = genCommonBlock(blk, false);
+		genBlockFinish(
+				   howToFinish,
+				   "if ( "+cnt+">=1 ) { break "+label+"; } else {" + throwNoViable + "}"
+				   );
+
+		println(cnt+"++;");
+		tabs--;
+		println("} while (true);");
+		println("}");
+
+		// Restore previous AST generation
+		currentASTResult = saveCurrentASTResult;
+	}
+
+
+	/** Generate code for the given grammar element.
+	 * @param blk The rule-reference to generate
+	 */
+	public void gen(RuleRefElement rr)
+	{
+	if ( DEBUG_CODE_GENERATOR ) System.out.println("genRR("+rr+")");
+	RuleSymbol rs = (RuleSymbol)grammar.getSymbol(rr.targetRule);
+	if (rs == null || !rs.isDefined())
+		{
+				// Is this redundant???
+		tool.error("Rule '" + rr.targetRule + "' is not defined", grammar.getFilename(), rr.getLine());
+		return;
+		}
+	if (!(rs instanceof RuleSymbol))
+		{
+				// Is this redundant???
+		tool.error("'" + rr.targetRule + "' does not name a grammar rule", grammar.getFilename(), rr.getLine());
+		return;
+		}
+
+	genErrorTryForElement(rr);
+
+	// AST value for labeled rule refs in tree walker.
+	// This is not AST construction;  it is just the input tree node value.
+	if ( grammar instanceof TreeWalkerGrammar &&
+		 rr.getLabel() != null &&
+		 syntacticPredLevel == 0 )
+		{
+		println(rr.getLabel() + " = _t==ASTNULL ? null : "+lt1Value+";");
+		}
+
+	// if in lexer and ! on rule ref or alt or rule, save buffer index to kill later
+	if ( grammar instanceof LexerGrammar && (!saveText||rr.getAutoGenType()==GrammarElement.AUTO_GEN_BANG) ) {
+		println("_saveIndex=text.length();");
+	}
+
+	// Process return value assignment if any
+	printTabs();
+	if (rr.idAssign != null)
+		{
+				// Warn if the rule has no return type
+		if (rs.block.returnAction == null)
+			{
+			tool.warning("Rule '" + rr.targetRule + "' has no return type", grammar.getFilename(), rr.getLine());
+			}
+		_print(rr.idAssign + "=");
+		} else {
+				// Warn about return value if any, but not inside syntactic predicate
+		if ( !(grammar instanceof LexerGrammar) && syntacticPredLevel == 0 && rs.block.returnAction != null)
+			{
+			tool.warning("Rule '" + rr.targetRule + "' returns a value", grammar.getFilename(), rr.getLine());
+			}
+		}
+
+	// Call the rule
+	GenRuleInvocation(rr);
+
+	// if in lexer and ! on element or alt or rule, save buffer index to kill later
+	if ( grammar instanceof LexerGrammar && (!saveText||rr.getAutoGenType()==GrammarElement.AUTO_GEN_BANG) ) {
+		println("text.setLength(_saveIndex);");
+	}
+
+	// if not in a syntactic predicate
+	if (syntacticPredLevel == 0) {
+		boolean doNoGuessTest = (
+					 grammar.hasSyntacticPredicate &&
+					 (
+					  grammar.buildAST && rr.getLabel() != null ||
+					  (genAST && rr.getAutoGenType() == GrammarElement.AUTO_GEN_NONE)
+					  )
+					 );
+		if (doNoGuessTest) {
+		println("if (inputState.guessing==0) {");
+		tabs++;
+		}
+
+		if (grammar.buildAST && rr.getLabel() != null) {
+				// always gen variable for rule return on labeled rules
+		println(rr.getLabel() + "_AST = ("+labeledElementASTType+")returnAST;");
+		}
+		if (genAST) {
+		switch (rr.getAutoGenType()) {
+		case GrammarElement.AUTO_GEN_NONE:
+			// println("theASTFactory.addASTChild(currentAST, returnAST);");
+			println("astFactory.addASTChild(currentAST, returnAST);");
+			break;
+		case GrammarElement.AUTO_GEN_CARET:
+			tool.error("Internal: encountered ^ after rule reference");
+			break;
+		default:
+			break;
+		}
+		}
+
+		// if a lexer and labeled, Token label defined at rule level, just set it here
+		if ( grammar instanceof LexerGrammar && rr.getLabel() != null ) {
+		println(rr.getLabel()+"=_returnToken;");
+		}
+
+		if (doNoGuessTest) {
+		tabs--;
+		println("}");
+		}
+	}
+	genErrorCatchForElement(rr);
+	}
+	/** Generate code for the given grammar element.
+	 * @param blk The string-literal reference to generate
+	 */
+	public void gen(StringLiteralElement atom) {
+	if ( DEBUG_CODE_GENERATOR ) System.out.println("genString("+atom+")");
+
+	// Variable declarations for labeled elements
+	if (atom.getLabel()!=null && syntacticPredLevel == 0) {
+		println(atom.getLabel() + " = " + lt1Value + ";");
+	}
+
+	// AST
+	genElementAST(atom);
+
+	// is there a bang on the literal?
+	boolean oldsaveText = saveText;
+	saveText = saveText && atom.getAutoGenType()==GrammarElement.AUTO_GEN_NONE;
+
+	// matching
+	genMatch(atom);
+
+	saveText = oldsaveText;
+
+	// tack on tree cursor motion if doing a tree walker
+	if (grammar instanceof TreeWalkerGrammar) {
+		println("_t = _t.getNextSibling();");
+	}
+	}
+
+	/** Generate code for the given grammar element.
+	 * @param blk The token-range reference to generate
+	 */
+	public void gen(TokenRangeElement r) {
+	genErrorTryForElement(r);
+	if ( r.getLabel()!=null  && syntacticPredLevel == 0) {
+		println(r.getLabel() + " = " + lt1Value + ";");
+	}
+
+	// AST
+	genElementAST(r);
+
+	// match
+	println("matchRange("+r.beginText+","+r.endText+");");
+	genErrorCatchForElement(r);
+	}
+
+	/** Generate code for the given grammar element.
+	 * @param blk The token-reference to generate
+	 */
+	public void gen(TokenRefElement atom) {
+	if ( DEBUG_CODE_GENERATOR ) System.out.println("genTokenRef("+atom+")");
+	if ( grammar instanceof LexerGrammar ) {
+		tool.panic("Token reference found in lexer");
+	}
+	genErrorTryForElement(atom);
+	// Assign Token value to token label variable
+	if ( atom.getLabel()!=null && syntacticPredLevel == 0) {
+		println(atom.getLabel() + " = " + lt1Value + ";");
+	}
+
+	// AST
+	genElementAST(atom);
+	// matching
+	genMatch(atom);
+	genErrorCatchForElement(atom);
+
+	// tack on tree cursor motion if doing a tree walker
+	if (grammar instanceof TreeWalkerGrammar) {
+		println("_t = _t.getNextSibling();");
+	}
+	}
+
+	public void gen(TreeElement t) {
+	// save AST cursor
+	println("AST __t" + t.ID + " = _t;");
+
+		// If there is a label on the root, then assign that to the variable
+	if (t.root.getLabel() != null) {
+		println(t.root.getLabel() + " = _t==ASTNULL ? null :("+labeledElementASTType +")_t;");
+	}
+
+	// Generate AST variables
+	genElementAST(t.root);
+	if (grammar.buildAST) {
+		// Save the AST construction state
+		println("ASTPair __currentAST" + t.ID + " = currentAST.copy();");
+		// Make the next item added a child of the TreeElement root
+		println("currentAST.root = currentAST.child;");
+		println("currentAST.child = null;");
+	}
+
+	// match root
+	genMatch(t.root);
+	// move to list of children
+	println("_t = _t.getFirstChild();");
+
+	// walk list of children, generating code for each
+	for (int i=0; i<t.getAlternatives().size(); i++) {
+		Alternative a = t.getAlternativeAt(i);
+		AlternativeElement e = a.head;
+		while ( e != null ) {
+		e.generate();
+		e = e.next;
+		}
+	}
+
+	if (grammar.buildAST) {
+		// restore the AST construction state to that just after the
+		// tree root was added
+		println("currentAST = __currentAST" + t.ID + ";");
+	}
+	// restore AST cursor
+	println("_t = __t" + t.ID + ";");
+	// move cursor to sibling of tree just parsed
+	println("_t = _t.getNextSibling();");
+	}
+	/** Generate the tree-parser Java file */
+	public void gen(TreeWalkerGrammar g) throws IOException {
+	// SAS: debugging stuff removed for now...
+	setGrammar(g);
+	if (!(grammar instanceof TreeWalkerGrammar)) {
+		tool.panic("Internal error generating tree-walker");
+	}
+	// Open the output stream for the parser and set the currentOutput
+	// SAS: move file open to method so subclass can override it
+	//	  (mainly for VAJ interface)
+	setupOutput(grammar.getClassName());
+
+	genAST = grammar.buildAST;
+	tabs = 0;
+
+	// Generate the header common to all output files.
+	genHeader();
+	// Do not use printAction because we assume tabs==0
+	println(behavior.getHeaderAction(""));
+
+	// Generate header for the parser
+	println("import antlr." + grammar.getSuperClass() + ";");
+	println("import antlr.Token;");
+	println("import antlr.collections.AST;");
+	println("import antlr.RecognitionException;");
+	println("import antlr.ANTLRException;");
+	println("import antlr.NoViableAltException;");
+	println("import antlr.MismatchedTokenException;");
+	println("import antlr.SemanticException;");
+	println("import antlr.collections.impl.BitSet;");
+	println("import antlr.ASTPair;");
+	println("import antlr.collections.impl.ASTArray;");
+
+	// Output the user-defined parser premamble
+	println(grammar.preambleAction.getText());
+
+	// Generate parser class definition
+	String sup=null;
+	if ( grammar.superClass!=null ) {
+		sup = grammar.superClass;
+	}
+	else {
+		sup = "antlr." + grammar.getSuperClass();
+	}
+	println("");
+
+	// print javadoc comment if any
+	if ( grammar.comment!=null ) {
+		_println(grammar.comment);
+	}
+
+	println("public class " + grammar.getClassName() + " extends "+sup);
+	println("	   implements " + grammar.tokenManager.getName() + TokenTypesFileSuffix);
+	Token tsuffix = (Token)grammar.options.get("classHeaderSuffix");
+	if ( tsuffix != null ) {
+		String suffix = Tool.stripFrontBack(tsuffix.getText(),"\"","\"");
+		if ( suffix != null ) {
+		print(", "+suffix);	// must be an interface name for Java
+		}
+	}
+	println(" {");
+
+	// Generate user-defined parser class members
+	print(
+		  processActionForTreeSpecifiers(grammar.classMemberAction.getText(), 0, currentRule, null)
+		  );
+
+	// Generate default parser class constructor
+	println("public " + grammar.getClassName() + "() {");
+	tabs++;
+	println("tokenNames = _tokenNames;");
+	tabs--;
+	println("}");
+	println("");
+
+	// Generate code for each rule in the grammar
+	Enumeration ids = grammar.rules.elements();
+	int ruleNum=0;
+	String ruleNameInits = "";
+	while ( ids.hasMoreElements() ) {
+		GrammarSymbol sym = (GrammarSymbol) ids.nextElement();
+		if ( sym instanceof RuleSymbol) {
+		RuleSymbol rs = (RuleSymbol)sym;
+		genRule(rs, rs.references.size()==0, ruleNum++);
+		}
+		exitIfError();
+	}
+
+	// Generate the token names
+	genTokenStrings();
+
+	// Generate the bitsets used throughout the grammar
+	genBitsets(bitsetsUsed, grammar.tokenManager.maxTokenType());
+
+	// Close class definition
+	println("}");
+	println("");
+
+	// Close the parser output stream
+	currentOutput.close();
+	currentOutput = null;
+	}
+
+	/** Generate code for the given grammar element.
+	 * @param wc The wildcard element to generate
+	 */
+	public void gen(WildcardElement wc) {
+	// Variable assignment for labeled elements
+	if (wc.getLabel()!=null && syntacticPredLevel == 0) {
+		println(wc.getLabel() + " = " + lt1Value + ";");
+	}
+
+	// AST
+	genElementAST(wc);
+	// Match anything but EOF
+	if (grammar instanceof TreeWalkerGrammar) {
+		println("if ( _t==null ) throw new MismatchedTokenException();");
+	}
+	else if (grammar instanceof LexerGrammar) {
+		if ( grammar instanceof LexerGrammar &&
+		 (!saveText||wc.getAutoGenType()==GrammarElement.AUTO_GEN_BANG) ) {
+		println("_saveIndex=text.length();");
+		}
+		println("matchNot(EOF_CHAR);");
+		if ( grammar instanceof LexerGrammar &&
+		 (!saveText||wc.getAutoGenType()==GrammarElement.AUTO_GEN_BANG) ) {
+		println("text.setLength(_saveIndex);"); // kill text atom put in buffer
+		}
+	}
+	else {
+		println("matchNot(" + getValueString(Token.EOF_TYPE) + ");");
+	}
+
+	// tack on tree cursor motion if doing a tree walker
+	if (grammar instanceof TreeWalkerGrammar) {
+		println("_t = _t.getNextSibling();");
+	}
+	}
+
+	/** Generate code for the given grammar element.
+	 * @param blk The (...)* block to generate
+	 */
+	public void gen(ZeroOrMoreBlock blk) {
+	if ( DEBUG_CODE_GENERATOR ) System.out.println("gen*("+blk+")");
+	println("{");
+	genBlockPreamble(blk);
+	String label;
+	if ( blk.getLabel() != null ) {
+		label = blk.getLabel();
+	}
+	else {
+		label = "_loop" + blk.ID;
+	}
+	println(label+":");
+	println("do {");
+	tabs++;
+
+	// Tell AST generation to build subrule result
+	String saveCurrentASTResult = currentASTResult;
+	if (blk.getLabel() != null) {
+		currentASTResult = blk.getLabel();
+	}
+
+	boolean ok = grammar.theLLkAnalyzer.deterministic(blk);
+
+	// generate exit test if greedy set to false
+	// and an alt is ambiguous with exit branch
+	// or when lookahead derived purely from end-of-file
+	// Lookahead analysis stops when end-of-file is hit,
+	// returning set {epsilon}.  Since {epsilon} is not
+	// ambig with any real tokens, no error is reported
+	// by deterministic() routines and we have to check
+	// for the case where the lookahead depth didn't get
+	// set to NONDETERMINISTIC (this only happens when the
+	// FOLLOW contains real atoms + epsilon).
+	boolean generateNonGreedyExitPath = false;
+	int nonGreedyExitDepth = grammar.maxk;
+
+	if ( !blk.greedy &&
+		 blk.exitLookaheadDepth<=grammar.maxk &&
+		 blk.exitCache[blk.exitLookaheadDepth].containsEpsilon() )
+		{
+		generateNonGreedyExitPath = true;
+		nonGreedyExitDepth = blk.exitLookaheadDepth;
+		}
+	else if ( !blk.greedy &&
+		  blk.exitLookaheadDepth==LLkGrammarAnalyzer.NONDETERMINISTIC )
+		{
+		generateNonGreedyExitPath = true;
+		}
+	if ( generateNonGreedyExitPath ) {
+		if ( DEBUG_CODE_GENERATOR ) {
+		System.out.println("nongreedy (...)* loop; exit depth is "+
+				   blk.exitLookaheadDepth);
+		}
+		String predictExit =
+		getLookaheadTestExpression(blk.exitCache,
+					   nonGreedyExitDepth);
+		println("// nongreedy exit test");
+		println("if ("+predictExit+") break "+label+";");
+	}
+
+	JavaBlockFinishingInfo howToFinish = genCommonBlock(blk, false);
+	genBlockFinish(howToFinish, "break " + label + ";");
+
+	tabs--;
+	println("} while (true);");
+	println("}");
+
+	// Restore previous AST generation
+	currentASTResult = saveCurrentASTResult;
+	}
+
+	/** Generate an alternative.
+	  * @param alt  The alternative to generate
+	  * @param blk The block to which the alternative belongs
+	  */
+	protected void genAlt(Alternative alt, AlternativeBlock blk) {
+	// Save the AST generation state, and set it to that of the alt
+	boolean savegenAST = genAST;
+	genAST = genAST && alt.getAutoGen();
+
+	boolean oldsaveTest = saveText;
+	saveText = saveText && alt.getAutoGen();
+
+	// Reset the variable name map for the alternative
+	Hashtable saveMap = treeVariableMap;
+	treeVariableMap = new Hashtable();
+
+	// Generate try block around the alt for  error handling
+	if (alt.exceptionSpec != null) {
+		println("try {	  // for error handling");
+		tabs++;
+	}
+
+	AlternativeElement elem = alt.head;
+	while ( !(elem instanceof BlockEndElement) ) {
+		elem.generate(); // alt can begin with anything. Ask target to gen.
+		elem = elem.next;
+	}
+
+	if ( genAST) {
+		if (blk instanceof RuleBlock) {
+				// Set the AST return value for the rule
+		RuleBlock rblk = (RuleBlock)blk;
+		println(rblk.getRuleName() + "_AST = ("+labeledElementASTType+")currentAST.root;");
+		}
+		else if (blk.getLabel() != null) {
+				// ### future: also set AST value for labeled subrules.
+				// println(blk.getLabel() + "_AST = ("+labeledElementASTType+")currentAST.root;");
+		}
+	}
+
+	if (alt.exceptionSpec != null) {
+		// close try block
+		tabs--;
+		println("}");
+		genErrorHandler(alt.exceptionSpec);
+	}
+
+	genAST = savegenAST;
+	saveText = oldsaveTest;
+
+	treeVariableMap = saveMap;
+	}
+
+	/** Generate all the bitsets to be used in the parser or lexer
+	 * Generate the raw bitset data like "long _tokenSet1_data[] = {...};"
+	 * and the BitSet object declarations like "BitSet _tokenSet1 = new BitSet(_tokenSet1_data);"
+	 * Note that most languages do not support object initialization inside a
+	 * class definition, so other code-generators may have to separate the
+	 * bitset declarations from the initializations (e.g., put the initializations
+	 * in the generated constructor instead).
+	 * @param bitsetList The list of bitsets to generate.
+	 * @param maxVocabulary Ensure that each generated bitset can contain at least this value.
+	 */
+	protected void genBitsets(
+				  Vector bitsetList,
+				  int maxVocabulary
+				  ) {
+	println("");
+	for (int i = 0; i < bitsetList.size(); i++)
+		{
+		BitSet p = (BitSet)bitsetList.elementAt(i);
+				// Ensure that generated BitSet is large enough for vocabulary
+		p.growToInclude(maxVocabulary);
+				// initialization data
+		println(
+			"private static final long " + getBitsetName(i) + "_data_" + "[] = { " +
+			p.toStringOfWords() +
+			" };"
+			);
+				// BitSet object
+		println(
+			"public static final BitSet " + getBitsetName(i) + " = new BitSet(" +
+			getBitsetName(i) + "_data_" +
+			");"
+			);
+		}
+	}
+
+	/** Generate the finish of a block, using a combination of the info
+	 * returned from genCommonBlock() and the action to perform when
+	 * no alts were taken
+	 * @param howToFinish The return of genCommonBlock()
+	 * @param noViableAction What to generate when no alt is taken
+	 */
+	protected void genBlockFinish(JavaBlockFinishingInfo howToFinish, String noViableAction)
+	{
+	if (howToFinish.needAnErrorClause &&
+		(howToFinish.generatedAnIf || howToFinish.generatedSwitch)) {
+		if ( howToFinish.generatedAnIf ) {
+		println("else {");
+		}
+		else {
+		println("{");
+		}
+		tabs++;
+		println(noViableAction);
+		tabs--;
+		println("}");
+	}
+
+	if ( howToFinish.postscript!=null ) {
+		println(howToFinish.postscript);
+	}
+	}
+
+	/** Generate the header for a block, which may be a RuleBlock or a
+	 * plain AlternativeBLock.  This generates any variable declarations,
+	 * init-actions, and syntactic-predicate-testing variables.
+	 * @blk The block for which the preamble is to be generated.
+	 */
+	protected void genBlockPreamble(AlternativeBlock blk) {
+	// define labels for rule blocks.
+	if ( blk instanceof RuleBlock ) {
+		RuleBlock rblk = (RuleBlock)blk;
+		if ( rblk.labeledElements!=null ) {
+		for (int i=0; i<rblk.labeledElements.size(); i++) {
+
+			AlternativeElement a = (AlternativeElement)rblk.labeledElements.elementAt(i);
+			//System.out.println("looking at labeled element: "+a);
+			//Variables for labeled rule refs and
+			//subrules are different than variables for
+			//grammar atoms.  This test is a little tricky
+			//because we want to get all rule refs and ebnf,
+			//but not rule blocks or syntactic predicates
+			if (
+			a instanceof RuleRefElement ||
+			a instanceof AlternativeBlock &&
+			!(a instanceof RuleBlock) &&
+			!(a instanceof SynPredBlock)
+			) {
+
+			if (
+				!(a instanceof RuleRefElement) &&
+				((AlternativeBlock)a).not &&
+				analyzer.subruleCanBeInverted(((AlternativeBlock)a), grammar instanceof LexerGrammar)
+				) {
+				// Special case for inverted subrules that
+				// will be inlined.  Treat these like
+				// token or char literal references
+				println(labeledElementType + " " + a.getLabel() + " = " + labeledElementInit + ";");
+				if (grammar.buildAST) {
+				println(labeledElementASTType+" " + a.getLabel() + "_AST = null;");
+				}
+			}
+			else {
+				if (grammar.buildAST) {
+				// Always gen AST variables for
+				// labeled elements, even if the
+				// element itself is marked with !
+				println(labeledElementASTType+" " + a.getLabel() + "_AST = null;");
+				}
+				if ( grammar instanceof LexerGrammar ) {
+				println("Token "+a.getLabel()+"=null;");
+				}
+				if (grammar instanceof TreeWalkerGrammar) {
+				// always generate rule-ref variables
+				// for tree walker
+				println(labeledElementType + " " + a.getLabel() + " = " + labeledElementInit + ";");
+				}
+			}
+			}
+			else {
+			// It is a token or literal reference.  Generate the
+			// correct variable type for this grammar
+			println(labeledElementType + " " + a.getLabel() + " = " + labeledElementInit + ";");
+			// In addition, generate *_AST variables if
+			// building ASTs
+			if (grammar.buildAST) {
+				if (a instanceof GrammarAtom &&
+				((GrammarAtom)a).getASTNodeType()!=null ) {
+				GrammarAtom ga = (GrammarAtom)a;
+				println(ga.getASTNodeType()+" " +
+					a.getLabel() +
+					"_AST = null;");
+				}
+				else {
+				println(labeledElementASTType+" " +
+					a.getLabel() +
+					"_AST = null;");
+				}
+			}
+			}
+		}
+		}
+	}
+
+	// dump out init action
+	if ( blk.initAction!=null ) {
+		printAction(
+			processActionForTreeSpecifiers(blk.initAction, 0, currentRule, null)
+			);
+	}
+	}
+
+	/** Generate a series of case statements that implement a BitSet test.
+	 * @param p The Bitset for which cases are to be generated
+	 */
+	protected void genCases(BitSet p) {
+	if ( DEBUG_CODE_GENERATOR ) System.out.println("genCases("+p+")");
+	int[] elems;
+
+	elems = p.toArray();
+	// Wrap cases four-per-line for lexer, one-per-line for parser
+	int wrap = (grammar instanceof LexerGrammar) ? 4 : 1;
+	int j=1;
+	boolean startOfLine = true;
+	for (int i = 0; i < elems.length; i++) {
+		if (j==1) {
+		print("");
+		} else {
+		_print("\t");
+		}
+		_print("case " + getValueString(elems[i]) + ":");
+
+		if (j==wrap) {
+		_println("");
+		startOfLine = true;
+		j=1;
+		}
+		else {
+		j++;
+		startOfLine = false;
+		}
+	}
+	if (!startOfLine) {
+		_println("");
+	}
+	}
+
+	/**Generate common code for a block of alternatives; return a
+	 * postscript that needs to be generated at the end of the
+	 * block.  Other routines may append else-clauses and such for
+	 * error checking before the postfix is generated.  If the
+	 * grammar is a lexer, then generate alternatives in an order
+	 * where alternatives requiring deeper lookahead are generated
+	 * first, and EOF in the lookahead set reduces the depth of
+	 * the lookahead.  @param blk The block to generate @param
+	 * noTestForSingle If true, then it does not generate a test
+	 * for a single alternative.
+	 */
+	public JavaBlockFinishingInfo genCommonBlock(AlternativeBlock blk,
+						 boolean noTestForSingle)
+	{
+	int nIF=0;
+	boolean createdLL1Switch = false;
+	int closingBracesOfIFSequence = 0;
+	JavaBlockFinishingInfo finishingInfo = new JavaBlockFinishingInfo();
+	if ( DEBUG_CODE_GENERATOR ) System.out.println("genCommonBlock("+blk+")");
+
+	// Save the AST generation state, and set it to that of the block
+	boolean savegenAST = genAST;
+	genAST = genAST && blk.getAutoGen();
+
+	boolean oldsaveTest = saveText;
+	saveText = saveText && blk.getAutoGen();
+
+	// Is this block inverted?  If so, generate special-case code
+	if (
+		blk.not &&
+		analyzer.subruleCanBeInverted(blk, grammar instanceof LexerGrammar)
+		) {
+		if ( DEBUG_CODE_GENERATOR ) System.out.println("special case: ~(subrule)");
+		Lookahead p = analyzer.look(1, blk);
+		// Variable assignment for labeled elements
+		if (blk.getLabel() != null && syntacticPredLevel == 0) {
+		println(blk.getLabel() + " = " + lt1Value + ";");
+		}
+
+		// AST
+		genElementAST(blk);
+
+		String astArgs="";
+		if (grammar instanceof TreeWalkerGrammar) {
+		astArgs="_t,";
+		}
+
+		// match the bitset for the alternative
+		println("match(" + astArgs + getBitsetName(markBitsetForGen(p.fset)) + ");");
+
+		// tack on tree cursor motion if doing a tree walker
+		if (grammar instanceof TreeWalkerGrammar) {
+		println("_t = _t.getNextSibling();");
+		}
+		return finishingInfo;
+	}
+
+	// Special handling for single alt
+	if (blk.getAlternatives().size() == 1) {
+		Alternative alt = blk.getAlternativeAt(0);
+		// Generate a warning if there is a synPred for single alt.
+		if (alt.synPred != null)
+		{
+			tool.warning(
+				 "Syntactic predicate superfluous for single alternative",
+				 grammar.getFilename(),
+				 blk.getAlternativeAt(0).synPred.getLine()
+				 );
+		}
+		if (noTestForSingle) {
+		if (alt.semPred != null) {
+			// Generate validating predicate
+			genSemPred(alt.semPred, blk.line);
+		}
+		genAlt(alt, blk);
+		return finishingInfo;
+		}
+	}
+
+	// count number of simple LL(1) cases; only do switch for
+	// many LL(1) cases (no preds, no end of token refs)
+	// We don't care about exit paths for (...)*, (...)+
+	// because we don't explicitly have a test for them
+	// as an alt in the loop.
+	//
+	// Also, we now count how many unicode lookahead sets
+	// there are--they must be moved to DEFAULT or ELSE
+	// clause.
+	int nLL1 = 0;
+	for (int i=0; i<blk.getAlternatives().size(); i++) {
+		Alternative a = blk.getAlternativeAt(i);
+		if ( suitableForCaseExpression(a) ) {
+		nLL1++;
+		}
+	}
+
+	// do LL(1) cases
+	if ( nLL1 >= makeSwitchThreshold) {
+		// Determine the name of the item to be compared
+		String testExpr = lookaheadString(1);
+		createdLL1Switch = true;
+		// when parsing trees, convert null to valid tree node with NULL lookahead
+		if ( grammar instanceof TreeWalkerGrammar ) {
+		println("if (_t==null) _t=ASTNULL;");
+		}
+		println("switch ( "+testExpr+") {");
+		for (int i=0; i<blk.alternatives.size(); i++) {
+		Alternative alt = blk.getAlternativeAt(i);
+		// ignore any non-LL(1) alts, predicated alts,
+		// or end-of-token alts for case expressions
+		if ( !suitableForCaseExpression(alt) ) {
+			continue;
+		}
+		Lookahead p = alt.cache[1];
+		if (p.fset.degree() == 0 && !p.containsEpsilon()) {
+			tool.warning("Alternate omitted due to empty prediction set",
+				 grammar.getFilename(),
+				 alt.head.getLine());
+		}
+		else {
+			genCases(p.fset);
+			println("{");
+			tabs++;
+			genAlt(alt, blk);
+			println("break;");
+			tabs--;
+			println("}");
+		}
+		}
+		println("default:");
+		tabs++;
+	}
+
+	// do non-LL(1) and nondeterministic cases This is tricky in
+	// the lexer, because of cases like: STAR : '*' ; ASSIGN_STAR
+	// : "*="; Since nextToken is generated without a loop, then
+	// the STAR will have end-of-token as it's lookahead set for
+	// LA(2).  So, we must generate the alternatives containing
+	// trailing end-of-token in their lookahead sets *after* the
+	// alternatives without end-of-token.  This implements the
+	// usual lexer convention that longer matches come before
+	// shorter ones, e.g.  "*=" matches ASSIGN_STAR not STAR
+	//
+	// For non-lexer grammars, this does not sort the alternates
+	// by depth Note that alts whose lookahead is purely
+	// end-of-token at k=1 end up as default or else clauses.
+	int startDepth = (grammar instanceof LexerGrammar) ? grammar.maxk : 0;
+	for (int altDepth = startDepth; altDepth >= 0; altDepth--) {
+		if ( DEBUG_CODE_GENERATOR ) System.out.println("checking depth "+altDepth);
+		for (int i=0; i<blk.alternatives.size(); i++) {
+		Alternative alt = blk.getAlternativeAt(i);
+		if ( DEBUG_CODE_GENERATOR ) System.out.println("genAlt: "+i);
+		// if we made a switch above, ignore what we already took care
+		// of.  Specifically, LL(1) alts with no preds
+		// that do not have end-of-token in their prediction set
+		// and that are not giant unicode sets.
+		if ( createdLL1Switch && suitableForCaseExpression(alt) ) {
+			if ( DEBUG_CODE_GENERATOR ) System.out.println("ignoring alt because it was in the switch");
+			continue;
+		}
+		String e;
+
+		boolean unpredicted = false;
+
+		if (grammar instanceof LexerGrammar) {
+			// Calculate the "effective depth" of the alt,
+			// which is the max depth at which
+			// cache[depth]!=end-of-token
+			int effectiveDepth = alt.lookaheadDepth;
+			if (effectiveDepth == GrammarAnalyzer.NONDETERMINISTIC) {
+			// use maximum lookahead
+			effectiveDepth = grammar.maxk;
+			}
+			while ( effectiveDepth >= 1 &&
+				alt.cache[effectiveDepth].containsEpsilon() ) {
+			effectiveDepth--;
+			}
+			// Ignore alts whose effective depth is other than
+			// the ones we are generating for this iteration.
+			if (effectiveDepth != altDepth) {
+			if ( DEBUG_CODE_GENERATOR )
+				System.out.println("ignoring alt because effectiveDepth!=altDepth;"+effectiveDepth+"!="+altDepth);
+			continue;
+			}
+			unpredicted = lookaheadIsEmpty(alt, effectiveDepth);
+			e = getLookaheadTestExpression(alt, effectiveDepth);
+		} else {
+			unpredicted = lookaheadIsEmpty(alt, grammar.maxk);
+			e = getLookaheadTestExpression(alt, grammar.maxk);
+		}
+
+		// Was it a big unicode range that forced unsuitability
+		// for a case expression?
+		if ( alt.cache[1].fset.degree()>caseSizeThreshold ) {
+			if ( nIF==0 ) {
+			println("if " + e + " {");
+			}
+			else {
+			println("else if " + e + " {");
+			}
+		}
+		else if (unpredicted &&
+			 alt.semPred==null &&
+			 alt.synPred==null) {
+			// The alt has empty prediction set and no
+			// predicate to help out.  if we have not
+			// generated a previous if, just put {...} around
+			// the end-of-token clause
+			if ( nIF==0 ) {
+			println("{");
+			}
+			else {
+			println("else {");
+			}
+			finishingInfo.needAnErrorClause = false;
+		}
+		else { // check for sem and syn preds
+
+			// Add any semantic predicate expression to the
+			// lookahead test
+			if ( alt.semPred != null ) {
+			// if debugging, wrap the evaluation of the
+			// predicate in a method translate $ and #
+			// references
+			ActionTransInfo tInfo = new ActionTransInfo();
+			String actionStr =
+				processActionForTreeSpecifiers(alt.semPred,
+							   blk.line,
+							   currentRule,
+							   tInfo);
+			// ignore translation info...we don't need to
+			// do anything with it.  call that will inform
+			// SemanticPredicateListeners of the result
+			if (((grammar instanceof ParserGrammar) ||
+				 (grammar instanceof LexerGrammar)) &&
+				grammar.debuggingOutput) {
+				e = "("+e+"&& fireSemanticPredicateEvaluated(antlr.debug.SemanticPredicateEvent.PREDICTING,"+
+				addSemPred(charFormatter.escapeString(actionStr))+","+actionStr+"))";
+			}
+			else {
+				e = "("+e+"&&("+actionStr +"))";
+			}
+			}
+
+			// Generate any syntactic predicates
+			if ( nIF>0 ) {
+			if ( alt.synPred != null ) {
+				println("else {");
+				tabs++;
+				genSynPred( alt.synPred, e );
+				closingBracesOfIFSequence++;
+			}
+			else {
+				println("else if " + e + " {");
+			}
+			}
+			else {
+			if ( alt.synPred != null ) {
+				genSynPred( alt.synPred, e );
+			}
+			else {
+				// when parsing trees, convert null to
+				// valid tree node with NULL lookahead.
+				if ( grammar instanceof TreeWalkerGrammar ) {
+				println("if (_t==null) _t=ASTNULL;");
+				}
+				println("if " + e + " {");
+			}
+			}
+
+		}
+
+		nIF++;
+		tabs++;
+		genAlt(alt, blk);
+		tabs--;
+		println("}");
+		}
+	}
+	String ps = "";
+	for (int i=1; i<=closingBracesOfIFSequence; i++) {
+		ps+="}";
+	}
+
+	// Restore the AST generation state
+	genAST = savegenAST;
+
+	// restore save text state
+	saveText=oldsaveTest;
+
+	// Return the finishing info.
+	if ( createdLL1Switch ) {
+		tabs--;
+		finishingInfo.postscript = ps+"}";
+		finishingInfo.generatedSwitch = true;
+		finishingInfo.generatedAnIf = nIF>0;
+		//return new JavaBlockFinishingInfo(ps+"}",true,nIF>0); // close up switch statement
+
+	}
+	else {
+		finishingInfo.postscript = ps;
+		finishingInfo.generatedSwitch = false;
+		finishingInfo.generatedAnIf = nIF>0;
+		// return new JavaBlockFinishingInfo(ps, false,nIF>0);
+	}
+	return finishingInfo;
+	}
+
+	protected static boolean suitableForCaseExpression(Alternative a) {
+	return
+		a.lookaheadDepth == 1 &&
+		a.semPred == null &&
+		!a.cache[1].containsEpsilon() &&
+		a.cache[1].fset.degree()<=caseSizeThreshold;
+	}
+
+	/** Generate code to link an element reference into the AST */
+	protected void genElementAST(AlternativeElement el) {
+	// handle case where you're not building trees, but are in tree walker.
+	// Just need to get labels set up.
+	if ( grammar instanceof TreeWalkerGrammar && !grammar.buildAST ) {
+		String elementRef;
+		String astName;
+
+		// Generate names and declarations of the AST variable(s)
+		if (el.getLabel() == null) {
+		elementRef = lt1Value;
+				// Generate AST variables for unlabeled stuff
+		astName = "tmp" + astVarNumber + "_AST";
+		astVarNumber++;
+				// Map the generated AST variable in the alternate
+		mapTreeVariable(el, astName);
+				// Generate an "input" AST variable also
+		println(labeledElementASTType+" "+astName+"_in = "+elementRef+";");
+		}
+		return;
+	}
+
+	if (grammar.buildAST && syntacticPredLevel == 0) {
+		boolean doNoGuessTest = (
+					 grammar.hasSyntacticPredicate &&
+					 (
+					  el.getLabel() != null ||
+					  el.getAutoGenType() != GrammarElement.AUTO_GEN_BANG
+					  )
+					 );
+
+		String elementRef;
+		String astName;
+
+		// Generate names and declarations of the AST variable(s)
+		if (el.getLabel() != null) {
+		elementRef = el.getLabel();
+		astName = el.getLabel() + "_AST";
+		} else {
+		elementRef = lt1Value;
+				// Generate AST variables for unlabeled stuff
+		astName = "tmp" + astVarNumber + "_AST";
+		astVarNumber++;
+				// Generate the declaration
+		if ( el instanceof GrammarAtom ) {
+			GrammarAtom ga = (GrammarAtom)el;
+			if ( ga.getASTNodeType()!=null ) {
+			println(ga.getASTNodeType()+" " + astName+" = null;");
+			}
+			else {
+			println(labeledElementASTType+" " + astName + " = null;");
+			}
+		}
+		else {
+			println(labeledElementASTType+" " + astName + " = null;");
+		}
+				// Map the generated AST variable in the alternate
+		mapTreeVariable(el, astName);
+		if (grammar instanceof TreeWalkerGrammar) {
+			// Generate an "input" AST variable also
+			println(labeledElementASTType+" " + astName + "_in = null;");
+		}
+		}
+
+		// Enclose actions with !guessing
+		if (doNoGuessTest) {
+		println("if (inputState.guessing==0) {");
+		tabs++;
+		}
+
+		if (el.getLabel() != null) {
+		if ( el instanceof GrammarAtom ) {
+			println(astName + " = "+ getASTCreateString((GrammarAtom)el, elementRef) + ";");
+		}
+		else {
+			println(astName + " = "+ getASTCreateString(elementRef) + ";");
+		}
+		} else {
+		elementRef = lt1Value;
+		if ( el instanceof GrammarAtom ) {
+			println(astName + " = "+ getASTCreateString((GrammarAtom)el, elementRef) + ";");
+		}
+		else {
+			println(astName + " = "+ getASTCreateString(elementRef) + ";");
+		}
+				// Map the generated AST variable in the alternate
+		if (grammar instanceof TreeWalkerGrammar) {
+			// set "input" AST variable also
+			println(astName + "_in = " + elementRef + ";");
+		}
+		}
+
+		if (genAST) {
+		switch (el.getAutoGenType()) {
+		case GrammarElement.AUTO_GEN_NONE:
+			println("astFactory.addASTChild(currentAST, " + astName + ");");
+			break;
+		case GrammarElement.AUTO_GEN_CARET:
+			println("astFactory.makeASTRoot(currentAST, " + astName + ");");
+			break;
+		default:
+			break;
+		}
+		}
+		if (doNoGuessTest) {
+		tabs--;
+		println("}");
+		}
+	}
+	}
+
+	/** Close the try block and generate catch phrases
+	 * if the element has a labeled handler in the rule
+	 */
+	protected void genErrorCatchForElement(AlternativeElement el) {
+	if (el.getLabel() == null) return;
+	String r = el.enclosingRuleName;
+	if ( grammar instanceof LexerGrammar ) {
+		r = CodeGenerator.lexerRuleName(el.enclosingRuleName);
+	}
+	RuleSymbol rs = (RuleSymbol)grammar.getSymbol(r);
+	if (rs == null) {
+		tool.panic("Enclosing rule not found!");
+	}
+	ExceptionSpec ex = rs.block.findExceptionSpec(el.getLabel());
+	if (ex != null) {
+		tabs--;
+		println("}");
+		genErrorHandler(ex);
+	}
+	}
+
+	/** Generate the catch phrases for a user-specified error handler */
+	protected void genErrorHandler(ExceptionSpec ex) {
+	// Each ExceptionHandler in the ExceptionSpec is a separate catch
+	for (int i = 0; i < ex.handlers.size(); i++)
+		{
+		ExceptionHandler handler = (ExceptionHandler)ex.handlers.elementAt(i);
+				// Generate catch phrase
+		println("catch (" + handler.exceptionTypeAndName.getText() + ") {");
+		tabs++;
+		if (grammar.hasSyntacticPredicate) {
+			println("if (inputState.guessing==0) {");
+			tabs++;
+		}
+
+				// When not guessing, execute user handler action
+		printAction(
+				processActionForTreeSpecifiers(handler.action.getText(), 0, currentRule, null)
+				);
+
+		if (grammar.hasSyntacticPredicate) {
+			tabs--;
+			println("} else {");
+			tabs++;
+			// When guessing, rethrow exception
+			println(
+				"throw " +
+				extractIdOfAction(handler.exceptionTypeAndName) +
+				";"
+				);
+			tabs--;
+			println("}");
+		}
+				// Close catch phrase
+		tabs--;
+		println("}");
+		}
+	}
+	/** Generate a try { opening if the element has a labeled handler in the rule */
+	protected void genErrorTryForElement(AlternativeElement el) {
+	if (el.getLabel() == null) return;
+	String r = el.enclosingRuleName;
+	if ( grammar instanceof LexerGrammar ) {
+		r = CodeGenerator.lexerRuleName(el.enclosingRuleName);
+	}
+	RuleSymbol rs = (RuleSymbol)grammar.getSymbol(r);
+	if (rs == null) {
+		tool.panic("Enclosing rule not found!");
+	}
+	ExceptionSpec ex = rs.block.findExceptionSpec(el.getLabel());
+	if (ex != null) {
+		println("try { // for error handling");
+		tabs++;
+	}
+	}
+
+	
