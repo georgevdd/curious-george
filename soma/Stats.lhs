@@ -203,8 +203,10 @@ Of course, this simple approach runs straight into the combinatrial explosion of
 
 The following was found very quickly (that's to say, in less than a second) with a linear constraint solver. Thanks to Google's math mailing list for that suggestion.
 
-> chosenCombo = map (compressedFaceInfos!!)
->                   [68, 139, 152, 208, 234, 336, 363, 386, 487, 513]
+> --chosenCombo = map (compressedFaceInfos!!)
+> --                  [68, 139, 152, 208, 234, 336, 363, 386, 487, 513]
+> chosenCombo = map (compressedFaceInfos !!)
+>                   [22, 48, 114, 138, 246, 326, 358, 415, 482, 576]
 
 The naive search may not be efficient enough for finding a solution, but it's suitable for checkin a solution. This confirms that the selection made by the linear constraint solver does have the properties required.
 
@@ -298,8 +300,10 @@ This makes a particular face of a solution point along the positive X axis.
 
 > reorient :: Solution -> CubeFace -> Solution
 > reorient (Solution s) (CubeFace sign axis) =
->     Solution [(shape, recipe .*. toXaxis sign axis, undefined) |
->               (shape, recipe, bitmap) <- s]
+>     Solution [let recipe' = recipe .*. toXaxis sign axis
+>                   df = defaultForm shape
+>               in (shape, recipe', asBits $ applyRecipe recipe' df) |
+>               (shape, recipe, _) <- s]
 
 > testMeshes = do
 >   let (solutionToCubeFace, shapeFaces) = implodeCombo chosenCombo
