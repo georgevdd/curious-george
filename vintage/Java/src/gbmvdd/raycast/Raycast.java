@@ -50,7 +50,8 @@ public class Raycast extends JPanel implements KeyListener
 		addKeyListener( this );
 
 		pix = new int[xSize * ySize];
-		xFOV = yFOV = Math.PI / 2;
+		yFOV = Math.PI / 2;
+		xFOV = Math.PI * 2;
 		angleIncrement = (Math.PI / 2) / 12 ;
 		fovIncrement = (Math.PI / 2) / 12 ;
 	}
