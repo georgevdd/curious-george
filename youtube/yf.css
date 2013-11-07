@@ -1,0 +1,29 @@
+.yf_list {
+  padding: 10px;
+}
+
+.yf_list li {
+  display: inline;
+  float: left;
+  list-style-type: none;
+  margin: 4px;
+  margin-right: 10px;
+  padding: 10px;
+  border: 1px solid #777777;
+  background-color: #dddddd
+}
+
+.yf_list li div {
+  margin-bottom: 4px;
+}
+
+.yf_mimetype {
+  font-size: 120%;
+}
+
+.yf_quality {
+  color: #777777;
+}
+.yf_codecs {
+  color: #777777;
+}
