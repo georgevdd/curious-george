@@ -1,0 +1,14 @@
+{
+  "manifest_version": 2,
+  "name": "Crazy Cat Lady",
+  "description": "Collect kittens",
+  "version": "1.0",
+  "content_scripts": [
+    {
+      "matches": ["http://www.youtube.com/*"],
+      "css": ["yf.css"],
+      "js": ["uri.js", "yf.js"],
+      "run_at": "document_end"
+    }
+  ]
+}
