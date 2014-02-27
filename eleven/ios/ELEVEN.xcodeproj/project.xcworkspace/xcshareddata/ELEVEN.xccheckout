@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>IDESourceControlProjectFavoriteDictionaryKey</key>
+	<false/>
+	<key>IDESourceControlProjectIdentifier</key>
+	<string>EB619916-9FE0-4B70-8DA0-8A12A1BC649E</string>
+	<key>IDESourceControlProjectName</key>
+	<string>ELEVEN</string>
+	<key>IDESourceControlProjectOriginsDictionary</key>
+	<dict>
+		<key>6DA38814-2764-49F8-AB82-638ED50004DD</key>
+		<string>https://code.google.com/p/curious-george/</string>
+	</dict>
+	<key>IDESourceControlProjectPath</key>
+	<string>eleven/ios/ELEVEN/ELEVEN.xcodeproj/project.xcworkspace</string>
+	<key>IDESourceControlProjectRelativeInstallPathDictionary</key>
+	<dict>
+		<key>6DA38814-2764-49F8-AB82-638ED50004DD</key>
+		<string>../../../../..</string>
+	</dict>
+	<key>IDESourceControlProjectURL</key>
+	<string>https://code.google.com/p/curious-george/</string>
+	<key>IDESourceControlProjectVersion</key>
+	<integer>110</integer>
+	<key>IDESourceControlProjectWCCIdentifier</key>
+	<string>6DA38814-2764-49F8-AB82-638ED50004DD</string>
+	<key>IDESourceControlProjectWCConfigurations</key>
+	<array>
+		<dict>
+			<key>IDESourceControlRepositoryExtensionIdentifierKey</key>
+			<string>public.vcs.git</string>
+			<key>IDESourceControlWCCIdentifierKey</key>
+			<string>6DA38814-2764-49F8-AB82-638ED50004DD</string>
+			<key>IDESourceControlWCCName</key>
+			<string>curious-george</string>
+		</dict>
+	</array>
+</dict>
+</plist>
