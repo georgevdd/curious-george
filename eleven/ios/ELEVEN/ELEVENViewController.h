@@ -8,6 +8,8 @@
 
 #import <UIKit/UIKit.h>
 
-@interface ELEVENViewController : UIViewController
+#import "FacebookSDK/FBLoginView.h"
+
+@interface ELEVENViewController : UIViewController <FBLoginViewDelegate>
 
 @end

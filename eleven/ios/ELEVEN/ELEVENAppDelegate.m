@@ -7,15 +7,28 @@
 //
 
 #import "ELEVENAppDelegate.h"
+#import "FacebookSDK/FBAppCall.h"
+#import "FacebookSDK/FBLoginView.h"
+#import "FacebookSDK/FBProfilePictureView.h"
 
 @implementation ELEVENAppDelegate
 
-- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
+- (BOOL)application:(UIApplication *)application
+didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
 {
-    // Override point for customization after application launch.
+    [FBLoginView class];
+    [FBProfilePictureView class];
     return YES;
 }
-							
+
+- (BOOL)application:(UIApplication *)application
+            openURL:(NSURL *)url
+  sourceApplication:(NSString *)sourceApplication
+         annotation:(id)annotation {
+    BOOL wasHandled = [FBAppCall handleOpenURL:url sourceApplication:sourceApplication];
+    return wasHandled;
+}
+
 - (void)applicationWillResignActive:(UIApplication *)application
 {
     // Sent when the application is about to move from active to inactive state. This can occur for certain types of temporary interruptions (such as an incoming phone call or SMS message) or when the user quits the application and it begins the transition to the background state.
