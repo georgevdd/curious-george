@@ -10,6 +10,8 @@
 #import "FacebookSDK/FBAppCall.h"
 #import "FacebookSDK/FBLoginView.h"
 #import "FacebookSDK/FBProfilePictureView.h"
+#import "FacebookSDK/FBRequest.h"
+#import <Parse/Parse.h>
 
 @implementation ELEVENAppDelegate
 
@@ -18,6 +20,12 @@ didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
 {
     [FBLoginView class];
     [FBProfilePictureView class];
+
+    [Parse setApplicationId:@"BcfLhnv2Se2tHjgdMkuxh9NsbPy3pXXdLTs3z7W1"
+                  clientKey:@"CISlYJCXoSl4dAo16XSv0xvWeaMQdJO9JhuLCnyk"];
+    [PFAnalytics trackAppOpenedWithLaunchOptions:launchOptions];
+    [PFFacebookUtils initializeFacebook];
+
     return YES;
 }
 
@@ -25,7 +33,9 @@ didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
             openURL:(NSURL *)url
   sourceApplication:(NSString *)sourceApplication
          annotation:(id)annotation {
-    BOOL wasHandled = [FBAppCall handleOpenURL:url sourceApplication:sourceApplication];
+    BOOL wasHandled = [FBAppCall handleOpenURL:url
+                             sourceApplication:sourceApplication
+                                   withSession:[PFFacebookUtils session]];
     return wasHandled;
 }
 
@@ -39,6 +49,7 @@ didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
 {
     // Use this method to release shared resources, save user data, invalidate timers, and store enough application state information to restore your application to its current state in case it is terminated later. 
     // If your application supports background execution, this method is called instead of applicationWillTerminate: when the user quits.
+    
 }
 
 - (void)applicationWillEnterForeground:(UIApplication *)application
@@ -48,7 +59,7 @@ didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
 
 - (void)applicationDidBecomeActive:(UIApplication *)application
 {
-    // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
+    [FBAppCall handleDidBecomeActiveWithSession:[PFFacebookUtils session]];
 }
 
 - (void)applicationWillTerminate:(UIApplication *)application

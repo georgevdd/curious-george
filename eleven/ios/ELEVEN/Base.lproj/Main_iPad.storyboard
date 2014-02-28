@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="4514" systemVersion="12F45" targetRuntime="iOS.CocoaTouch.iPad" propertyAccessControl="none" useAutolayout="YES" initialViewController="BYZ-38-t0r">
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="5053" systemVersion="12F45" targetRuntime="iOS.CocoaTouch.iPad" propertyAccessControl="none" useAutolayout="YES" initialViewController="BYZ-38-t0r">
     <dependencies>
-        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="3747"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="3733"/>
+        <capability name="Aspect ratio constraints" minToolsVersion="5.1"/>
     </dependencies>
     <scenes>
         <!--View Controller-->
@@ -9,51 +10,76 @@
             <objects>
                 <viewController id="BYZ-38-t0r" customClass="ELEVENViewController" sceneMemberID="viewController">
                     <layoutGuides>
-                        <viewControllerLayoutGuide type="top" id="iFO-7L-cxh"/>
-                        <viewControllerLayoutGuide type="bottom" id="QPt-fS-YMO"/>
+                        <viewControllerLayoutGuide type="top" id="CNy-NB-Bv3"/>
+                        <viewControllerLayoutGuide type="bottom" id="zYM-l7-a4x"/>
                     </layoutGuides>
                     <view key="view" contentMode="center" id="bV9-NR-Ohe">
                         <rect key="frame" x="0.0" y="0.0" width="768" height="1024"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
-                            <view contentMode="center" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="shl-DL-awp" customClass="FBLoginView">
-                                <rect key="frame" x="66" y="429" width="418" height="143"/>
+                            <view contentMode="bottom" verticalHuggingPriority="750" misplaced="YES" placeholderIntrinsicWidth="747" placeholderIntrinsicHeight="48" translatesAutoresizingMaskIntoConstraints="NO" id="shl-DL-awp" customClass="FBLoginView">
+                                <rect key="frame" x="11" y="947" width="747" height="57"/>
                                 <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                 <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="calibratedWhite"/>
                                 <connections>
                                     <outlet property="delegate" destination="BYZ-38-t0r" id="gbk-hD-lEZ"/>
                                 </connections>
                             </view>
-                            <view contentMode="scaleToFill" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="trQ-px-wjg" userLabel="profilePictureView" customClass="FBProfilePictureView">
-                                <rect key="frame" x="167" y="85" width="234" height="190"/>
+                            <view contentMode="scaleAspectFit" horizontalCompressionResistancePriority="250" verticalCompressionResistancePriority="250" misplaced="YES" translatesAutoresizingMaskIntoConstraints="NO" id="trQ-px-wjg" userLabel="profilePictureView" customClass="FBProfilePictureView">
+                                <rect key="frame" x="11" y="833" width="75" height="75"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
                                 <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="calibratedWhite"/>
+                                <constraints>
+                                    <constraint firstAttribute="width" secondItem="trQ-px-wjg" secondAttribute="height" multiplier="1:1" id="0NV-XU-dyg"/>
+                                </constraints>
                             </view>
-                            <label opaque="NO" clipsSubviews="YES" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" fixedFrame="YES" text="Name Label" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="VmM-7A-xKI">
-                                <rect key="frame" x="283" y="283" width="233" height="75"/>
+                            <label opaque="NO" clipsSubviews="YES" userInteractionEnabled="NO" contentMode="center" horizontalCompressionResistancePriority="250" verticalCompressionResistancePriority="250" ambiguous="YES" misplaced="YES" text="Nobody" lineBreakMode="tailTruncation" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="VmM-7A-xKI">
+                                <rect key="frame" x="94" y="821" width="643" height="100"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
-                                <fontDescription key="fontDescription" type="system" pointSize="17"/>
-                                <color key="textColor" cocoaTouchSystemColor="darkTextColor"/>
-                                <nil key="highlightedColor"/>
-                            </label>
-                            <label opaque="NO" clipsSubviews="YES" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" fixedFrame="YES" text="Status Label" textAlignment="right" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="NB8-ZK-f1Y">
-                                <rect key="frame" x="101" y="291" width="174" height="59"/>
-                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
-                                <fontDescription key="fontDescription" type="system" pointSize="17"/>
+                                <fontDescription key="fontDescription" name="HelveticaNeue" family="Helvetica Neue" pointSize="17"/>
                                 <color key="textColor" cocoaTouchSystemColor="darkTextColor"/>
                                 <nil key="highlightedColor"/>
                             </label>
                         </subviews>
                         <color key="backgroundColor" white="0.66666666666666663" alpha="1" colorSpace="calibratedWhite"/>
+                        <constraints>
+                            <constraint firstItem="VmM-7A-xKI" firstAttribute="height" secondItem="trQ-px-wjg" secondAttribute="height" priority="250" id="90r-Rh-mzn"/>
+                            <constraint firstItem="shl-DL-awp" firstAttribute="leading" secondItem="bV9-NR-Ohe" secondAttribute="leading" constant="8" id="F1t-F6-yzM"/>
+                            <constraint firstItem="VmM-7A-xKI" firstAttribute="leading" secondItem="trQ-px-wjg" secondAttribute="trailing" constant="8" id="MgM-Fe-f7y"/>
+                            <constraint firstAttribute="trailing" secondItem="shl-DL-awp" secondAttribute="trailing" constant="8" id="T5l-zc-gcY"/>
+                            <constraint firstItem="shl-DL-awp" firstAttribute="top" secondItem="trQ-px-wjg" secondAttribute="bottom" constant="8" id="UVc-NQ-aEr"/>
+                            <constraint firstItem="trQ-px-wjg" firstAttribute="height" secondItem="shl-DL-awp" secondAttribute="height" id="aOK-DT-w1n"/>
+                            <constraint firstItem="trQ-px-wjg" firstAttribute="leading" secondItem="shl-DL-awp" secondAttribute="leading" id="b9j-bZ-M8z"/>
+                            <constraint firstItem="trQ-px-wjg" firstAttribute="centerY" secondItem="VmM-7A-xKI" secondAttribute="centerY" id="dJx-mk-kUn"/>
+                            <constraint firstItem="zYM-l7-a4x" firstAttribute="top" secondItem="shl-DL-awp" secondAttribute="bottom" constant="20" id="glI-h0-U4j"/>
+                        </constraints>
                     </view>
                     <connections>
                         <outlet property="nameLabel" destination="VmM-7A-xKI" id="uy6-AK-mdK"/>
                         <outlet property="profilePictureView" destination="trQ-px-wjg" id="MEW-8A-eRa"/>
-                        <outlet property="statusLabel" destination="NB8-ZK-f1Y" id="gpK-UI-66a"/>
                     </connections>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="dkx-z0-nzr" sceneMemberID="firstResponder"/>
             </objects>
+            <point key="canvasLocation" x="-329" y="-287"/>
+        </scene>
+        <!--View Controller-->
+        <scene sceneID="ggl-DX-9ns">
+            <objects>
+                <viewController id="4xc-iC-3qt" sceneMemberID="viewController">
+                    <layoutGuides>
+                        <viewControllerLayoutGuide type="top" id="OR7-Ib-UvA"/>
+                        <viewControllerLayoutGuide type="bottom" id="zPm-3L-alC"/>
+                    </layoutGuides>
+                    <view key="view" contentMode="scaleToFill" id="8yh-tQ-wwr">
+                        <rect key="frame" x="0.0" y="0.0" width="768" height="1024"/>
+                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                        <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="calibratedWhite"/>
+                    </view>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="zHi-Hf-4iZ" userLabel="First Responder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="652" y="-294"/>
         </scene>
     </scenes>
     <color key="tintColor" white="1" alpha="1" colorSpace="calibratedWhite"/>
