@@ -27,7 +27,7 @@ data FrameState = FrameState {
   cameraPos :: Vec3,
   cubeAngle :: Scalar,
   deflations :: Integer
-}
+} deriving Show
 
 
 drawAxis :: Int -> IO ()
@@ -58,7 +58,7 @@ faceCorners i = [f n | n <- map gray [0..3 :: Int]]
                  else if testBit n ((i + x) `mod` 3) then 1 else -1
 
 
-data Type = Kite | Dart
+data Type = Kite | Dart deriving Show
 
 data Half = Half Type Proj3
 
@@ -108,7 +108,6 @@ drawTri tile color = do
   currentColor $= strokeColor
   renderPrimitive LineStrip vertices
 
-
 drawPts3 n buf = drawRangeElements Lines (0, n) 3 Float buf
 
 up = Vec3 0 1 0
@@ -120,36 +119,32 @@ glvc3 :: Vec3 -> Vector3 GLdouble
 glvc3 (Vec3 x y z) = fmap glflt (Vector3 x y z)
 
 
+kite = [Half Kite $ scaling $ Vec2 1 (-1),
+              Half Kite one]
+sun = [Half Kite (m .*. linear (rotMatrix2 $ n * 2/5 * pi)) |
+             Half Kite m <- kite,
+             n <- [0..4]]
+
 
 drawFrame :: IORef FrameState -> IO ()
 drawFrame stateRef = do
   state <- readIORef stateRef
+  drawScene state
+  swapBuffers
+
+
+drawScene :: FrameState -> IO ()
+drawScene state = do
   clearColor $= bgColor state
   clear [ColorBuffer, DepthBuffer]
-  depthFunc $= Just Lequal
+
   currentColor $= Color4 1 1 0 1
+
+  matrixMode $= Modelview 0
   loadIdentity
   lookAt (glvt3 $ cameraPos state) (glvt3 zero) (glvc3 up)
-  --glTranslate $ Vec3 0 0 (-2 :: Scalar)
-  --drawAxes
-
-  --lineWidth $= 16 * (1-phi) ** (fromInteger $ deflations state)
-
-  --glRotate (cubeAngle state) (Vec3 0 0 1)
-  let kite = [Half Kite $ scaling $ Vec2 1 (-1),
-              Half Kite one]
-      sun = [Half Kite (m .*. linear (rotMatrix2 $ n * 2/5 * pi)) |
-             Half Kite m <- kite,
-             n <- [0..4]]
-  mapM_ drawTile $ foldl (\l n -> concatMap deflate l) sun [1 .. deflations state]
-
-
-  -- renderPrimitive LineLoop $ do
-  --   mapM_ vertex $ cubeCorners 0.5
-  currentColor $= Color4 1 1 1 1
-  -- mapM_ (\i -> renderPrimitive LineLoop $ mapM_ vertex $ faceCorners i) [0..5]
-  swapBuffers
-  return ()
+  let tiles = foldl (\l n -> concatMap deflate l) sun [1 .. deflations state]
+  mapM_ drawTile tiles
 
 
 onReshape :: Size -> IO ()
@@ -170,19 +165,23 @@ onDisplay = drawFrame
 idleAnimation = False
 
 onIdle :: IORef FrameState -> IO ()
-onIdle stateRef = when idleAnimation $ drawFrame stateRef
+onIdle stateRef = do
+  oldState <- readIORef stateRef
+  let newState = think oldState
+  writeIORef stateRef newState
+  when idleAnimation $ drawFrame stateRef
 
 onKeypress :: IORef FrameState -> KeyboardMouseCallback
 onKeypress stateRef key keyState modifiers position = do
   oldState <- readIORef stateRef
+
   let newState =
         case (key, keyState) of
-          (Char 'k', Down) -> oldState { deflations = deflations oldState + 1 }
-          (Char 'j', Down) -> oldState { deflations = deflations oldState - 1 }
-          (Char 'R', Down) -> let Vec3 x y z = cameraPos oldState
-                      in oldState { cameraPos = Vec3 x y (z-0.1) }
-          otherwise -> oldState
-  writeIORef stateRef newState
+          (Char 'k', Down) -> Just oldState { deflations = deflations oldState + 1 }
+          (Char 'j', Down) -> Just oldState { deflations = deflations oldState - 1 }
+          otherwise -> Nothing
+  when (isJust newState) $
+       writeIORef stateRef $ fromJust newState
   when (not idleAnimation) $ drawFrame stateRef
 
 onClose :: IO ()
@@ -194,7 +193,7 @@ initialState = FrameState {
   bgColor = Color4 0.4 0.4 1.0 1.0,
   cameraPos = Vec3 0 0 1,
   cubeAngle = 0,
-  deflations = 0
+  deflations = 3
 }
 
 think :: FrameState -> FrameState
@@ -202,10 +201,9 @@ think oldState = oldState { cubeAngle = cubeAngle oldState + 0.1 }
 
 main :: IO ()
 main = do
+  initialWindowSize $= Size 800 800
   (progName, args) <- getArgsAndInitialize
-  -- putStrLn $ show args
   window <- createWindow progName
-  windowSize $= Size 800 800
   stateRef <- newIORef initialState
   reshapeCallback $= Just onReshape
   displayCallback $= onDisplay stateRef
