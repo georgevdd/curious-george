@@ -4,7 +4,7 @@ import Codec.Binary.Gray (gray)
 import Control.Monad (when)
 import Data.Maybe
 import Data.Word (Word32, Word8)
-import Graphics.UI.GLUT hiding (Line)
+import Graphics.UI.GLUT hiding (Line, normalize)
 import Data.IORef
 
 import Data.Vect.Double
@@ -34,7 +34,7 @@ initialState = FrameState {
   yA = 0.25
 }
 
-data Line = Line Vec2 Vec2 deriving Show
+type Line = (Vec2, Vec2)
 
 -- Find the intersections (if any) of a line with the unit circle.
 --
@@ -46,7 +46,7 @@ data Line = Line Vec2 Vec2 deriving Show
 -- D(s)^2 == 1
 -- D(s)^2 - 1 == 0
 intersectCircle :: Line -> Maybe Line
-intersectCircle (Line (Vec2 x y) (Vec2 x' y')) =
+intersectCircle ((Vec2 x y), (Vec2 x' y')) =
   let a = (x'-x)^2 + (y'-y)^2
       b = 2*(x'*x - x^2 + y'*y -y^2)
       c = (x^2 + y^2) - 1
@@ -57,12 +57,26 @@ intersectCircle (Line (Vec2 x y) (Vec2 x' y')) =
               s   = q (-r)
               s'  = q (r)
               pointAt s = Vec2 (s*x' + (1-s)*x) (s*y' + (1-s)*y)
-          in Just (Line (pointAt s) (pointAt s'))
+          in Just ((pointAt s), (pointAt s'))
+
+-- P(s) = (s*a'x + (1-s)*ax), (s*ay' + (1-s)*ay)
+-- D(s) = (P(s) . perp(b' - b)) - (b . perp(b' - b))
+-- D(s) = (s*a'x + (1-s)*ax)*nbx + (s*a'y + (1-s)*ay)*nby - (bx * nbx + by * nby)
+-- D(s) = s((a'x - ax)*nbx + (a'y - ay)*nby) + ax*nbx + ay*nby - (bx * nbx + by * nby)
+-- D(s) == 0
+-- s = ( (bx * nbx + by * nby) - ax*nbx + ay*nby ) / ((a'x - ax)*nbx + (a'y - ay)*nby)
+intersectLine :: Line -> Line -> Vec2
+intersectLine (a, a') (b, b') =
+  let da = a' &- a
+      db = b' &- b
+      nb = Vec2 (-_2 db) (_1 db)
+      s = ((b &- a) &. nb) / (da &. nb)
+  in (s *& a') &+ ((1-s) *& a)
 
 
 baseLine :: Double -> Line
-baseLine y = fromJust $ intersectCircle $ Line (Vec2 (-1) y) (Vec2 1 y)
-
+baseLine y = let (_, p) = fromJust $ intersectCircle $ ((Vec2 (-1) y), (Vec2 1 y))
+             in (Vec2 0 y, p)
 
 
 data Type = Kite | Dart deriving Show
@@ -120,9 +134,8 @@ drawCircle :: Double -> IO ()
 drawCircle radius = do
   let vertices = mapM_ vertex
                        [Vec2 (radius * cos(2*pi*a)) (radius * sin(2*pi*a)) |
-                        a <- [0, 1/32 .. 1]]
+                        a <- [0, 1/64 .. 63/64]]
   renderPrimitive LineLoop vertices
-  renderPrimitive Lines $ mapM_ vertex $ concat [[s, s'] | (Line s s') <- map baseLine [0, 0.1 .. 1]]
 
 drawPts3 n buf = drawRangeElements Lines (0, n) 3 Float buf
 
@@ -160,6 +173,20 @@ drawScene state = do
 
   currentColor $= Color4 0 0 0.8 1
   drawCircle 1
+
+  let xA' = 0.25
+
+  let centreLine@(bottom, top) = ((Vec2 0 (-1)), (Vec2 0 1))
+      hA@(_, _A) = baseLine $ yA state
+      hB@(_, _B) = baseLine $ -(yA state)
+      sA = (_A, bottom)
+      sB = (_B, top)
+      _A' = Vec2 xA' (-(yA state))
+      _1 = intersectLine sB hA
+  renderPrimitive Lines $ mapM_ vertex $ concat [[s, s', mirror s, mirror s'] | (s, s') <- [
+      hA, hB, sA, sB, (_A', _1)
+    ]]
+    where mirror (Vec2 x y) = (Vec2 (-x) y)
 
 
 onReshape :: Size -> IO ()
