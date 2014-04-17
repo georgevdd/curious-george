@@ -201,25 +201,27 @@ drawScene state = do
       y5 = -0.1
 
   let centreLine@(bottom, top) = ((Vec2 0 (-1)), (Vec2 0 1))
-      t1 = Tri (snd $ baseLine $ y1) (-1)
-      t2 = Tri (snd $ baseLine $ y2) 1
-      p4 = intersectLine (triBase t1) (triSide t2)
+      t2 = Tri (snd $ baseLine $ y1) (-1)
+      t2' = Tri (snd $ baseLine $ y2) 1
+
+      p4 = intersectLine (triBase t2) (triSide t2')
       l4 = (Vec2 0 y4, p4)
-      p4' = intersectLine (triBase t2) (triSide t1)
+      p4' = intersectLine (triBase t2') (triSide t2)
       l4' = (Vec2 0 y3, p4')
+
       p5 = intersectLine l4 (baseLine y2)
       l5 = (Vec2 0 y1, p5)
-      t3 = Tri (intersectLine l5 (baseLine y4)) y1
+      t5 = Tri (intersectLine l5 (baseLine y4)) y1
 
       p6 = intersectLine (baseLine y5) l4
-      p6' = intersectLine l5 (triSide t1)
+      p6' = intersectLine l5 (triSide t2)
       t6 = Tri (intersectLine (p6', mirror p6') l4') y3
 
       p7 = intersectLine (baseLine y1) l4'
       l7 = (Vec2 0 y5, p7)
       t7 = Tri (intersectLine l7 (baseLine y3)) y5
 
-      p8 = intersectLine l7 (triSide t2)
+      p8 = intersectLine l7 (triSide t2')
       t8 = Tri (intersectLine (p8, mirror p8) l4) y4
 
       t9 = Tri p6 (_2 p8)
@@ -252,7 +254,7 @@ drawScene state = do
               l = len (p12 &- Vec2 0 by)
               by = y5
 
-  renderPrimitive Lines $ mapM_ vertex $ concatMap triLines [t1, t2, t3, t6, t7, t8, t9, t11, t13]
+  renderPrimitive Lines $ mapM_ vertex $ concatMap triLines [t2, t2', t5, t6, t7, t8, t9, t11, t13]
 
   currentColor $= Color4 1 1 1 1
   preservingMatrix $ do
