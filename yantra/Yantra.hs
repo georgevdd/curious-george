@@ -36,6 +36,9 @@ initialState = FrameState {
 
 type Line = (Vec2, Vec2)
 
+perp :: Vec2 -> Vec2
+perp (Vec2 x y) = Vec2 (-y) x
+
 -- Find the intersections (if any) of a line with the unit circle.
 --
 -- P(s) = (s*x' + (1-s)*x), (s*y' + (1-s)*y)
@@ -59,6 +62,8 @@ intersectCircle ((Vec2 x y), (Vec2 x' y')) =
               pointAt s = Vec2 (s*x' + (1-s)*x) (s*y' + (1-s)*y)
           in Just ((pointAt s), (pointAt s'))
 
+-- Find the intersection of two lines
+--
 -- P(s) = (s*a'x + (1-s)*ax), (s*ay' + (1-s)*ay)
 -- D(s) = (P(s) . perp(b' - b)) - (b . perp(b' - b))
 -- D(s) = (s*a'x + (1-s)*ax)*nbx + (s*a'y + (1-s)*ay)*nby - (bx * nbx + by * nby)
@@ -69,7 +74,7 @@ intersectLine :: Line -> Line -> Vec2
 intersectLine (a, a') (b, b') =
   let da = a' &- a
       db = b' &- b
-      nb = Vec2 (-_2 db) (_1 db)
+      nb = perp db
       s = ((b &- a) &. nb) / (da &. nb)
   in (s *& a') &+ ((1-s) *& a)
 
@@ -148,19 +153,34 @@ glvc3 :: Vec3 -> Vector3 GLdouble
 glvc3 (Vec3 x y z) = fmap glflt (Vector3 x y z)
 
 
-kite = [Half Kite $ scaling $ Vec2 1 (-1),
-              Half Kite one]
-sun = [Half Kite (m .*. linear (rotMatrix2 $ n * 2/5 * pi)) |
-             Half Kite m <- kite,
-             n <- [0..4]]
-
-
 drawFrame :: IORef FrameState -> IO ()
 drawFrame stateRef = do
   state <- readIORef stateRef
   drawScene state
   swapBuffers
 
+
+
+mirror (Vec2 x y) = (Vec2 (-x) y)
+
+data Tri = Tri { triCorner :: Vec2, triTop :: Double }
+triBase, triSide :: Tri -> Line
+triSide t = (triCorner t, Vec2 0 (triTop t))
+triBase t = (triCorner t, mirror $ triCorner t)
+triBottom :: Tri -> Double
+triBottom = _2 . triCorner
+
+triLines :: Tri -> [Vec2]
+triLines t =
+  let (l, r) = triBase t
+      top = Vec2 0 (triTop t)
+  in [l, top, r, top, l, r]
+
+label :: Vec2 -> String -> IO ()
+label p s = preservingMatrix $ do
+  glTranslate (extendZero p)
+  glScale (1/3000)
+  renderString Roman s
 
 drawScene :: FrameState -> IO ()
 drawScene state = do
@@ -174,19 +194,92 @@ drawScene state = do
   currentColor $= Color4 0 0 0.8 1
   drawCircle 1
 
-  let xA' = 0.25
+  let y1 = 0.25
+      y2 = -y1
+      y3 = 0.75
+      y4 = -y3
+      y5 = -0.1
 
   let centreLine@(bottom, top) = ((Vec2 0 (-1)), (Vec2 0 1))
-      hA@(_, _A) = baseLine $ yA state
-      hB@(_, _B) = baseLine $ -(yA state)
-      sA = (_A, bottom)
-      sB = (_B, top)
-      _A' = Vec2 xA' (-(yA state))
-      _1 = intersectLine sB hA
-  renderPrimitive Lines $ mapM_ vertex $ concat [[s, s', mirror s, mirror s'] | (s, s') <- [
-      hA, hB, sA, sB, (_A', _1)
-    ]]
-    where mirror (Vec2 x y) = (Vec2 (-x) y)
+      t1 = Tri (snd $ baseLine $ y1) (-1)
+      t2 = Tri (snd $ baseLine $ y2) 1
+      p4 = intersectLine (triBase t1) (triSide t2)
+      l4 = (Vec2 0 y4, p4)
+      p4' = intersectLine (triBase t2) (triSide t1)
+      l4' = (Vec2 0 y3, p4')
+      p5 = intersectLine l4 (baseLine y2)
+      l5 = (Vec2 0 y1, p5)
+      t3 = Tri (intersectLine l5 (baseLine y4)) y1
+
+      p6 = intersectLine (baseLine y5) l4
+      p6' = intersectLine l5 (triSide t1)
+      t6 = Tri (intersectLine (p6', mirror p6') l4') y3
+
+      p7 = intersectLine (baseLine y1) l4'
+      l7 = (Vec2 0 y5, p7)
+      t7 = Tri (intersectLine l7 (baseLine y3)) y5
+
+      p8 = intersectLine l7 (triSide t2)
+      t8 = Tri (intersectLine (p8, mirror p8) l4) y4
+
+      t9 = Tri p6 (_2 p8)
+
+      p10 = intersectLine (triSide t9) l7
+
+      t11 = Tri (intersectLine (p10, mirror p10) l4') (triBottom t6)
+      p11 = intersectLine (baseLine y5) (triSide t11)
+
+      p12 = intersectLine l7 l5
+
+      t13 = Tri (intersectLine (p12, mirror p12) (triSide t9)) y2
+
+-- a is corner; b is top
+-- bx == 0
+-- ay - y == D(0, y)
+-- D(p) = (a - p) . norm(perp(b-a))
+-- D(0, y) = (ax, ay - y) . (ay - by, bx - ax) / l
+--         = (ax, ay - y) . (ay - by, -ax) / l
+--         = (ax*(ay-by) + (ay-y)*(-ax)) / l
+--         = (ax*(ay-by) + -y*(-ax) + ay*(-ax)) / l
+-- l*(ay - y) = ax*(ay-by) + -y*(-ax) + ay*(-ax)
+-- y*(-ax - l) = ax*(ay-by) + ay*(-ax) - ay*l
+-- y = (ax*(ay-by) + ay*(-ax) - ay*l)/(-ax - l)
+--   = (ax*ay - ax*by - ay*ax - ay*l)/(-ax - l)
+--   = (- ax*by - ay*l)/(-ax - l)
+--   = (ax*by + ay*l)/(ax + l)
+      bindu = Vec2 0 ((ax*by + ay*l)/(ax + l))
+        where (Vec2 ax ay) = p12
+              l = len (p12 &- Vec2 0 by)
+              by = y5
+
+  renderPrimitive Lines $ mapM_ vertex $ concatMap triLines [t1, t2, t3, t6, t7, t8, t9, t11, t13]
+
+  currentColor $= Color4 1 1 1 1
+  preservingMatrix $ do
+    glTranslate (extendZero bindu)
+    drawCircle (_2 bindu - y5)
+    drawCircle (0.004)
+
+  currentColor $= Color4 1 0 0 1
+  label (Vec2 0 0) "Centre"
+  mapM_ (uncurry label) $
+   [(Vec2 0 y, s) | (y, s) <- [
+     (y1, "y1"),
+     (y2, "y2"),
+     (y3, "y3"),
+     (y4, "y4"),
+     (y5, "y5")]] ++
+   [(p4, "p4"),
+    (p4', "p4'"),
+    (p5, "p5"),
+    (p6, "p6"),
+    (p6', "p6'"),
+    (p7, "p7"),
+    (p8, "p8"),
+    (p10, "p10"),
+    (p11, "p11"),
+    (p12, "p12"),
+    (bindu, "b")]
 
 
 onReshape :: Size -> IO ()
