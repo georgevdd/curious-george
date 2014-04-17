@@ -128,7 +128,7 @@ label :: Vec2 -> String -> IO ()
 label p s = preservingMatrix $ do
   glTranslate (extendZero p)
   glScale (1/3000)
-  renderString Roman s
+  renderString MonoRoman s
 
 drawScene :: FrameState -> IO ()
 drawScene state = do
@@ -230,6 +230,13 @@ drawScene state = do
     (p11, "p11"),
     (p12, "p12"),
     (bindu, "b")]
+
+  let squerrors = [
+                  ("bindu", lensqr bindu),
+                      ("p11", 0)
+                          ]
+
+  label (Vec2 (-1) (-1 + 0.015)) "Status\n goes here"
 
 
 onReshape :: Size -> IO ()
