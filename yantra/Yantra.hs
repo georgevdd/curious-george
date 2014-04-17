@@ -83,58 +83,6 @@ baseLine :: Double -> Line
 baseLine y = let (_, p) = fromJust $ intersectCircle $ ((Vec2 (-1) y), (Vec2 1 y))
              in (Vec2 0 y, p)
 
-
-data Type = Kite | Dart deriving Show
-
-data Half = Half Type Proj3
-
-phi = 0
-deflate :: Half -> [Half]
-deflate (Half Kite m) = [Half t (foldr1 (.*.) l .*. m) | (t, l) <- [
-  (Dart, [translation $ Vec2 (-1) 0,
-          linear $ rotMatrix2 (-4/5 * pi),
-          scaling $ Vec2 (2 - phi) (2 - phi)]),
-  (Kite, [linear $ rotMatrix2 (-3/5 * pi),
-          scaling $ Vec2 (phi - 1) (phi - 1),
-          translation $ rotate2 (1/5 * pi) (Vec2 1 0)]),
-  (Kite, [scaling $ Vec2 (1 - phi) (phi - 1),
-          linear $ rotMatrix2 (2/5 * pi),
-          translation $ rotate2 (1/5 * pi) (Vec2 1 0)])
-  ]]
-deflate (Half Dart m) = [Half t (foldr1 (.*.) l .*. m) | (t, l) <- [
-  (Dart, [translation $ rotate2 (-2/5 * pi) (Vec2 1 0),
-          linear $ rotMatrix2 (4/5 * pi),
-          scaling $ Vec2 (phi - 1) (phi - 1)]),
-  (Kite, [scaling $ Vec2 (-1) 1,
-          translation $ Vec2 1 0])
-  ]]
-
-realise :: Half -> (Type, [Vec2])
-realise (Half t m) = (t, [
- (trim $ (extendWith 1 x :: Vec3) .* (fromProjective m) :: Vec2)  | x <- [
-  Vec2 0 0,
-  rotate2 a (Vec2 1 0),
-  Vec2 1 0
- ]])
- where a = case t of Kite -> (pi/5)
-                     Dart -> (3 * pi/5)
-
-strokeColor = Color4 0.5 0.5 1 1
-kiteColor   = Color4 0.8 0.8 1 1
-dartColor   = Color4 0.7 0.7 1 1
-
-drawTile :: Half -> IO ()
-drawTile t@(Half Kite m) = drawTri t kiteColor
-drawTile t@(Half Dart m) = drawTri t dartColor
-
-drawTri :: Half -> Color4 GLfloat -> IO ()
-drawTri tile color = do
-  let vertices = mapM_ vertex $ (snd . realise) tile
-  currentColor $= color
-  renderPrimitive Triangles vertices
-  currentColor $= strokeColor
-  renderPrimitive LineStrip vertices
-
 drawCircle :: Double -> IO ()
 drawCircle radius = do
   let vertices = mapM_ vertex
