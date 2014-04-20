@@ -202,13 +202,13 @@ drawScene state = do
               l = len (p12 &- Vec2 0 by)
               by = y5
 
-  renderPrimitive Lines $ mapM_ vertex $ concatMap triLines [t2, t2', t5, t6, t7, t8, t9, t11, t13]
+  let allTris = [t2, t2', t5, t6, t7, t8, t9, t11, t13]
+  renderPrimitive Lines $ mapM_ vertex $ concatMap triLines allTris
 
   currentColor $= Color4 1 1 1 1
   preservingMatrix $ do
     glTranslate (extendZero bindu)
     drawCircle (_2 bindu - _2 p12)
-    drawCircle (0.004)
 
   currentColor $= Color4 1 0 0 1
   label (Vec2 0 0) "Centre"
@@ -231,12 +231,26 @@ drawScene state = do
     (p12, "p12"),
     (bindu, "b")]
 
+  let p11_error = distPointLine p11 l5
+      distPointLine p (a, b) = (p &. perp (a &- b)) - (a &. perp (a &- b))
+
   let squerrors = [
                   ("bindu", lensqr bindu),
-                      ("p11", 0)
-                          ]
+                  ("p11", p11_error ** 2),
+                  ("t5", (1 - (len $ triCorner t5))**2),
+                  ("t7", (1 - (len $ triCorner t7))**2)
+                  ]
 
-  label (Vec2 (-1) (-1 + 0.015)) "Status\n goes here"
+  sequence_ [label (Vec2 (-1) (-1 + 0.015 + 0.06 * l)) (m ++ ": " ++ show (e*10000)) |
+             (l, (m, e)) <- zip [0..] squerrors]
+
+  sequence_ [label (mirror $ triCorner t) (show l) |
+             (t, l) <- zip allTris [1..]]
+
+  renderPrimitive Lines $ sequence_ [vertex v | v <-
+    [zero, bindu] ++
+    concat [[mirror t, normalize $ mirror t] |
+            t <- [triCorner t5, triCorner t7]]]
 
 
 onReshape :: Size -> IO ()
