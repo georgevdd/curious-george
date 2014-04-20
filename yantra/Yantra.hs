@@ -207,7 +207,7 @@ drawScene state = do
   currentColor $= Color4 1 1 1 1
   preservingMatrix $ do
     glTranslate (extendZero bindu)
-    drawCircle (_2 bindu - y5)
+    drawCircle (_2 bindu - _2 p12)
     drawCircle (0.004)
 
   currentColor $= Color4 1 0 0 1
