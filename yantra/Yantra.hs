@@ -232,7 +232,8 @@ drawScene state = do
     (bindu, "b")]
 
   let p11_error = distPointLine p11 l5
-      distPointLine p (a, b) = (p &. perp (a &- b)) - (a &. perp (a &- b))
+      distPointLine p (a, b) = (p &. perp (a &- b)) -
+                               (a &. perp (a &- b))
 
   let squerrors = [
                   ("bindu", lensqr bindu),
