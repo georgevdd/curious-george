@@ -327,14 +327,18 @@ onKeypress :: IORef FrameState -> KeyboardMouseCallback
 onKeypress stateRef key keyState modifiers position = do
   oldState <- readIORef stateRef
 
-  let newState =
-        case (key, keyState) of
-          (Char 'k', Down) -> Just oldState
-          (Char 'j', Down) -> Just oldState
-          otherwise -> Nothing
-  when (isJust newState) $
-       writeIORef stateRef $ fromJust newState
-  when (not idleAnimation) $ drawFrame stateRef
+  case (key, keyState) of
+    (Char 'p', Down) -> print $ ys oldState
+    otherwise -> return
+
+  -- let newState =
+  --       case (key, keyState) of
+  --         (Char 'k', Down) -> Just oldState
+  --         (Char 'j', Down) -> Just oldState
+  --         otherwise -> Nothing
+  -- when (isJust newState) $
+  --      writeIORef stateRef $ fromJust newState
+  -- when (not idleAnimation) $ drawFrame stateRef
 
 onClose :: IO ()
 onClose = do
