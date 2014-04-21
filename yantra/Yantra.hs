@@ -2,6 +2,7 @@ module Main where
 import Data.Bits (testBit)
 import Codec.Binary.Gray (gray)
 import Control.Monad (when)
+import Data.List
 import Data.Maybe
 import Data.Word (Word32, Word8)
 import Graphics.UI.GLUT hiding (Line, normalize)
@@ -9,6 +10,8 @@ import Data.IORef
 
 import Data.Vect.Double
 import Data.Vect.Double.OpenGL
+
+import Debug.Trace
 
 unitVector :: Int -> Vec3
 unitVector 0 = Vec3 1 0 0
@@ -120,7 +123,7 @@ label p s = preservingMatrix $ do
 data FrameState = FrameState {
   bgColor :: ClearColor,
   cameraPos :: Vec3,
-  ys :: [Double],
+  fsYs :: [Double],
   cs :: ComputedState
 }
 
@@ -135,8 +138,8 @@ initialState :: FrameState
 initialState = FrameState {
   bgColor = Color4 0.8 0.8 1.0 1.0,
   cameraPos = Vec3 0 0 1,
-  ys = [0.25, -0.25, 0.75, -0.75, -0.1],
-  cs = computeTris $ ys initialState
+  fsYs = [0.25, -0.25, 0.75, -0.75, -0.1],
+  cs = computeTris $ fsYs initialState
 }
 
 computeTris :: [Double] -> ComputedState
@@ -239,10 +242,22 @@ computeTris ys =
        csSquerrors = squerrors
        }
 
+epsilon :: Double
+epsilon = 0.000002
+
 think :: FrameState -> FrameState
 think oldState =
-  let newYs = (head (ys oldState) + 0.00001) : tail (ys oldState)
-  in oldState { ys = newYs, cs = computeTris newYs }
+  let ys = fsYs oldState
+      e = sum $ map snd $ csSquerrors $ cs oldState
+      probePts = [h ++ (head t + epsilon):(tail t) |
+                  (h, t) <- zip (inits ys) (filter (not . null) $ tails ys)]
+      e's = [sum $ map snd $ csSquerrors $ computeTris pt | pt <- probePts]
+      des = [e' - e | e' <- e's]
+      lde = sqrt $ sum [de*de | de <- des]
+      newYs = [y - epsilon * de / lde | (y, de) <- zip ys des]
+--      x = traceShow (e's) epsilon
+--      newYs = (head ys + x) : tail ys
+  in oldState { fsYs = newYs, cs = computeTris newYs }
 
 drawScene :: FrameState -> IO ()
 drawScene state = do
@@ -269,7 +284,7 @@ drawScene state = do
   currentColor $= Color4 1 0 0 1
   label (Vec2 0 0) "Centre"
   mapM_ (uncurry label) $
-   [(Vec2 0 y, "y" ++ show s) | (y, s) <- zip (ys state) [1..]] ++
+   [(Vec2 0 y, "y" ++ show s) | (y, s) <- zip (fsYs state) [1..]] ++
    allConstructionPts
 
   sequence_ [label (Vec2 (-1) (-1 + 0.015 + 0.06 * l)) (m ++ ": " ++ show (e*10000)) |
