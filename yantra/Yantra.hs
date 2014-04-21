@@ -26,6 +26,9 @@ color3f = Color3
 
 type Line = (Vec2, Vec2)
 
+lineLen :: Line -> Double
+lineLen (a, b) = len (b &- a)
+
 perp :: Vec2 -> Vec2
 perp (Vec2 x y) = Vec2 (-y) x
 
@@ -108,6 +111,10 @@ triBase t = (triCorner t, mirror $ triCorner t)
 triBottom :: Tri -> Double
 triBottom = _2 . triCorner
 
+triangleBetween :: Line -> Line -> Line -> [Vec2]
+triangleBetween a b c = [intersectLine x y |
+                         (x, y) <- [(a, b), (b, c), (c, a)]]
+
 triLines :: Tri -> [Vec2]
 triLines t =
   let (l, r) = triBase t
@@ -138,7 +145,12 @@ initialState :: FrameState
 initialState = FrameState {
   bgColor = Color4 0.8 0.8 1.0 1.0,
   cameraPos = Vec3 0 0 1,
-  fsYs = [0.25, -0.25, 0.75, -0.75, -0.1],
+  fsYs = [
+    0.3001145060079917,
+    -0.30456468284635857,
+    0.8358218564619556,
+    -0.8757793496076738,
+    -0.11504699897999972],
   cs = computeTris $ fsYs initialState
 }
 
@@ -232,7 +244,8 @@ computeTris ys =
                   ("bindu", lensqr bindu),
                   ("p11", p11_error ** 2),
                   ("t5", (1 - (len $ triCorner t5))**2),
-                  ("t7", (1 - (len $ triCorner t7))**2)
+                  ("t7", (1 - (len $ triCorner t7))**2),
+                  ("equi", (lineLen (triSide t7) - lineLen (triBase t7))**2)
                   ]
 
   in ComputedState {
@@ -243,7 +256,7 @@ computeTris ys =
        }
 
 epsilon :: Double
-epsilon = 0.000002
+epsilon = 0.0000001
 
 think :: FrameState -> FrameState
 think oldState =
@@ -268,12 +281,52 @@ drawScene state = do
   loadIdentity
   lookAt (glvt3 $ cameraPos state) (glvt3 zero) (glvc3 up)
 
-  currentColor $= Color4 0 0 0.8 1
-  drawCircle 1
-
   let (ComputedState allTris' bindu allConstructionPts squerrors) = cs state
       allTris = map fst allTris'
+      [t1, t2, t3, t4, t5, t6, t7, t8, t9] = allTris
 
+  currentColor $= Color4 0.6 0.6 0.8 1
+  let sideTris = [
+        triangleBetween (triSide t2) (triBase t1) (triSide t1),
+        triangleBetween (triSide t2) (triBase t6) (triSide t6),
+        triangleBetween (triSide t2) (triBase t5) (triSide t5),
+
+        triangleBetween (triSide t1) (triBase t2) (triSide t2),
+        triangleBetween (triSide t1) (triBase t4) (triSide t4),
+        triangleBetween (triSide t1) (triBase t3) (triSide t3),
+
+        triangleBetween (triBase t4) (triSide t3) (triSide t6),
+        triangleBetween (triBase t2) (triSide t4) (triSide t6),
+
+        triangleBetween (triBase t1) (triSide t4) (triSide t6),
+        triangleBetween (triBase t6) (triSide t4) (triSide t5),
+
+        triangleBetween (triSide t7) (triBase t1) (triSide t5),
+        triangleBetween (triSide t7) (triBase t8) (triSide t8),
+
+        triangleBetween (triSide t8) (triBase t2) (triSide t3),
+        triangleBetween (triSide t8) (triBase t7) (triSide t7),
+
+        triangleBetween (triSide t3) (triBase t8) (triSide t5),
+        triangleBetween (triSide t3) (triBase t9) (triSide t9),
+
+        triangleBetween (triSide t9) (triBase t7) (triSide t3)
+        ]
+      centreTris = map mkCentreTri [
+        (t3, t1),
+        (t4, t6),
+        (t2, t8),
+        (t7, t9),
+        (t9, t5),
+        (t8, t3),
+        (t1, t7),
+        (t6, t4),
+        (t5, t2)]
+      mkCentreTri (b, s) = triangleBetween (triBase b) (triSide s) (mirror $ fst $ triSide s, mirror $ snd $ triSide s)
+  renderPrimitive Triangles $ mapM_ vertex $ concat $ centreTris ++ sideTris ++ map (map mirror) sideTris
+
+  currentColor $= Color4 0 0 0.8 1
+  drawCircle 1
   renderPrimitive Lines $ mapM_ vertex $ concatMap triLines allTris
 
   currentColor $= Color4 1 1 1 1
@@ -290,8 +343,7 @@ drawScene state = do
   sequence_ [label (Vec2 (-1) (-1 + 0.015 + 0.06 * l)) (m ++ ": " ++ show (e*10000)) |
              (l, (m, e)) <- zip [0..] squerrors]
 
-  sequence_ [label (mirror $ triCorner t) (show l) |
-             (t, l) <- zip allTris [1..]]
+  sequence_ [label (mirror $ triCorner t) ("t" ++ show l) | (t, l) <- zip allTris [1..]]
 
   renderPrimitive Lines $ sequence_ [vertex v | v <-
     [zero, bindu] ++
@@ -314,7 +366,7 @@ onReshape (Size x y) = do
 onDisplay :: IORef FrameState -> IO ()
 onDisplay = drawFrame
 
-idleAnimation = True
+idleAnimation = False
 
 onIdle :: IORef FrameState -> IO ()
 onIdle stateRef = do
@@ -328,8 +380,8 @@ onKeypress stateRef key keyState modifiers position = do
   oldState <- readIORef stateRef
 
   case (key, keyState) of
-    (Char 'p', Down) -> print $ ys oldState
-    otherwise -> return
+    (Char 'p', Down) -> print $ fsYs oldState
+    otherwise -> return ()
 
   -- let newState =
   --       case (key, keyState) of
