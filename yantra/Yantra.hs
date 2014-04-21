@@ -136,7 +136,7 @@ initialState = FrameState {
   bgColor = Color4 0.8 0.8 1.0 1.0,
   cameraPos = Vec3 0 0 1,
   ys = [0.25, -0.25, 0.75, -0.75, -0.1],
-  cs = ComputedState [] zero [] []
+  cs = computeTris $ ys initialState
 }
 
 computeTris :: [Double] -> ComputedState
@@ -239,6 +239,11 @@ computeTris ys =
        csSquerrors = squerrors
        }
 
+think :: FrameState -> FrameState
+think oldState =
+  let newYs = (head (ys oldState) + 0.00001) : tail (ys oldState)
+  in oldState { ys = newYs, cs = computeTris newYs }
+
 drawScene :: FrameState -> IO ()
 drawScene state = do
   clearColor $= bgColor state
@@ -251,7 +256,7 @@ drawScene state = do
   currentColor $= Color4 0 0 0.8 1
   drawCircle 1
 
-  let (ComputedState allTris' bindu allConstructionPts squerrors) = computeTris (ys state)
+  let (ComputedState allTris' bindu allConstructionPts squerrors) = cs state
       allTris = map fst allTris'
 
   renderPrimitive Lines $ mapM_ vertex $ concatMap triLines allTris
@@ -294,7 +299,7 @@ onReshape (Size x y) = do
 onDisplay :: IORef FrameState -> IO ()
 onDisplay = drawFrame
 
-idleAnimation = False
+idleAnimation = True
 
 onIdle :: IORef FrameState -> IO ()
 onIdle stateRef = do
@@ -319,9 +324,6 @@ onKeypress stateRef key keyState modifiers position = do
 onClose :: IO ()
 onClose = do
   return ()
-
-think :: FrameState -> FrameState
-think oldState = oldState
 
 main :: IO ()
 main = do
