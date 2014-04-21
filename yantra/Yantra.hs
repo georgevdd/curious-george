@@ -21,19 +21,6 @@ type Scalar = Double
 color3f :: Float -> Float -> Float -> Color3 Float
 color3f = Color3
 
-data FrameState = FrameState {
-  bgColor :: ClearColor,
-  cameraPos :: Vec3,
-  yA :: Double
-} deriving Show
-
-initialState :: FrameState
-initialState = FrameState {
-  bgColor = Color4 0.8 0.8 1.0 1.0,
-  cameraPos = Vec3 0 0 1,
-  yA = 0.25
-}
-
 type Line = (Vec2, Vec2)
 
 perp :: Vec2 -> Vec2
@@ -130,25 +117,34 @@ label p s = preservingMatrix $ do
   glScale (1/3000)
   renderString MonoRoman s
 
-drawScene :: FrameState -> IO ()
-drawScene state = do
-  clearColor $= bgColor state
-  clear [ColorBuffer, DepthBuffer]
+data FrameState = FrameState {
+  bgColor :: ClearColor,
+  cameraPos :: Vec3,
+  ys :: [Double],
+  cs :: ComputedState
+}
 
-  matrixMode $= Modelview 0
-  loadIdentity
-  lookAt (glvt3 $ cameraPos state) (glvt3 zero) (glvc3 up)
+data ComputedState = ComputedState {
+  csTris :: [(Tri, String)],
+  csBindu :: Vec2,
+  csConstructionPts :: [(Vec2, String)],
+  csSquerrors :: [(String, Double)]
+}
 
-  currentColor $= Color4 0 0 0.8 1
-  drawCircle 1
+initialState :: FrameState
+initialState = FrameState {
+  bgColor = Color4 0.8 0.8 1.0 1.0,
+  cameraPos = Vec3 0 0 1,
+  ys = [0.25, -0.25, 0.75, -0.75, -0.1],
+  cs = ComputedState [] zero [] []
+}
 
-  let y1 = 0.25
-      y2 = -y1
-      y3 = 0.75
-      y4 = -y3
-      y5 = -0.1
+computeTris :: [Double] -> ComputedState
+computeTris ys =
 
-  let centreLine@(bottom, top) = ((Vec2 0 (-1)), (Vec2 0 1))
+  let [y1, y2, y3, y4, y5] = ys
+
+      centreLine@(bottom, top) = ((Vec2 0 (-1)), (Vec2 0 1))
       t2 = Tri (snd $ baseLine $ y1) (-1)
       t2' = Tri (snd $ baseLine $ y2) 1
 
@@ -183,6 +179,7 @@ drawScene state = do
 
       t13 = Tri (intersectLine (p12, mirror p12) (triSide t9)) y2
 
+-- Find the incentre of an equilateral triangle
 -- a is corner; b is top
 -- bx == 0
 -- ay - y == D(0, y)
@@ -202,45 +199,73 @@ drawScene state = do
               l = len (p12 &- Vec2 0 by)
               by = y5
 
-  let allTris = [t2, t2', t5, t6, t7, t8, t9, t11, t13]
-  renderPrimitive Lines $ mapM_ vertex $ concatMap triLines allTris
+      allTris = [
+        (t2, "t2"),
+        (t2', "t2'"),
+        (t5, "t5"),
+        (t6, "t6"),
+        (t7, "t7"),
+        (t8, "t8"),
+        (t9, "t9"),
+        (t11, "t11"),
+        (t13, "t13")]
+      allConstructionPoints = [
+        (p4, "p4"),
+        (p4', "p4'"),
+        (p5, "p5"),
+        (p6, "p6"),
+        (p6', "p6'"),
+        (p7, "p7"),
+        (p8, "p8"),
+        (p10, "p10"),
+        (p11, "p11"),
+        (p12, "p12")]
 
-  currentColor $= Color4 1 1 1 1
-  preservingMatrix $ do
-    glTranslate (extendZero bindu)
-    drawCircle (_2 bindu - _2 p12)
-
-  currentColor $= Color4 1 0 0 1
-  label (Vec2 0 0) "Centre"
-  mapM_ (uncurry label) $
-   [(Vec2 0 y, s) | (y, s) <- [
-     (y1, "y1"),
-     (y2, "y2"),
-     (y3, "y3"),
-     (y4, "y4"),
-     (y5, "y5")]] ++
-   [(p4, "p4"),
-    (p4', "p4'"),
-    (p5, "p5"),
-    (p6, "p6"),
-    (p6', "p6'"),
-    (p7, "p7"),
-    (p8, "p8"),
-    (p10, "p10"),
-    (p11, "p11"),
-    (p12, "p12"),
-    (bindu, "b")]
-
-  let p11_error = distPointLine p11 l5
+      p11_error = distPointLine p11 l5
       distPointLine p (a, b) = (p &. perp (a &- b)) -
                                (a &. perp (a &- b))
 
-  let squerrors = [
+      squerrors = [
                   ("bindu", lensqr bindu),
                   ("p11", p11_error ** 2),
                   ("t5", (1 - (len $ triCorner t5))**2),
                   ("t7", (1 - (len $ triCorner t7))**2)
                   ]
+
+  in ComputedState {
+       csTris = allTris,
+       csConstructionPts = allConstructionPoints,
+       csBindu = bindu,
+       csSquerrors = squerrors
+       }
+
+drawScene :: FrameState -> IO ()
+drawScene state = do
+  clearColor $= bgColor state
+  clear [ColorBuffer, DepthBuffer]
+
+  matrixMode $= Modelview 0
+  loadIdentity
+  lookAt (glvt3 $ cameraPos state) (glvt3 zero) (glvc3 up)
+
+  currentColor $= Color4 0 0 0.8 1
+  drawCircle 1
+
+  let (ComputedState allTris' bindu allConstructionPts squerrors) = computeTris (ys state)
+      allTris = map fst allTris'
+
+  renderPrimitive Lines $ mapM_ vertex $ concatMap triLines allTris
+
+  currentColor $= Color4 1 1 1 1
+  preservingMatrix $ do
+    glTranslate (extendZero bindu)
+    drawCircle (_2 bindu - _2 (fst $ last allConstructionPts))
+
+  currentColor $= Color4 1 0 0 1
+  label (Vec2 0 0) "Centre"
+  mapM_ (uncurry label) $
+   [(Vec2 0 y, "y" ++ show s) | (y, s) <- zip (ys state) [1..]] ++
+   allConstructionPts
 
   sequence_ [label (Vec2 (-1) (-1 + 0.015 + 0.06 * l)) (m ++ ": " ++ show (e*10000)) |
              (l, (m, e)) <- zip [0..] squerrors]
@@ -251,7 +276,7 @@ drawScene state = do
   renderPrimitive Lines $ sequence_ [vertex v | v <-
     [zero, bindu] ++
     concat [[mirror t, normalize $ mirror t] |
-            t <- [triCorner t5, triCorner t7]]]
+            t <- [triCorner (allTris!!2), triCorner (allTris!!4)]]]
 
 
 onReshape :: Size -> IO ()
