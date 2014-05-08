@@ -3,17 +3,19 @@ import Data.Bits (testBit)
 import Codec.Binary.Gray (gray)
 import Control.Monad (when)
 import Data.Maybe
+import Data.Either
 import Data.Word (Word32, Word8)
-import Graphics.UI.GLUT
+import Graphics.UI.GLUT hiding (Inside, Outside)
 import Data.IORef
+import Data.Hash
 
 import Data.Vect.Double
 import Data.Vect.Double.OpenGL
 
 unitVector :: Int -> Vec3
-unitVector 0 = Vec3 1 0 0
-unitVector 1 = Vec3 0 1 0
-unitVector 2 = Vec3 0 0 1
+unitVector 0 = vec3X
+unitVector 1 = vec3Y
+unitVector 2 = vec3Z
 
 type ClearColor = Color4 GLclampf
 type Scalar = Double
@@ -25,9 +27,17 @@ color3f = Color3
 data FrameState = FrameState {
   bgColor :: ClearColor,
   cameraPos :: Vec3,
-  cubeAngle :: Scalar,
+  fsAngle :: Scalar,
   deflations :: Integer
 } deriving Show
+
+initialState :: FrameState
+initialState = FrameState {
+  bgColor = Color4 0.4 0.4 1.0 1.0,
+  cameraPos = Vec3 0 0 (-1),
+  fsAngle = 0,
+  deflations = 6
+}
 
 
 drawAxis :: Int -> IO ()
@@ -60,10 +70,10 @@ faceCorners i = [f n | n <- map gray [0..3 :: Int]]
 
 data Type = Kite | Dart deriving Show
 
-data Half = Half Type Proj3
+data Half = Half Type Proj3 deriving Show
 
-deflate :: Half -> [Half]
-deflate (Half Kite m) = [Half t (foldr1 (.*.) l .*. m) | (t, l) <- [
+deflate1 :: Half -> [Half]
+deflate1 (Half Kite m) = [Half t (foldr1 (.*.) l .*. m) | (t, l) <- [
   (Dart, [translation $ Vec2 (-1) 0,
           linear $ rotMatrix2 (-4/5 * pi),
           scaling $ Vec2 (2 - phi) (2 - phi)]),
@@ -74,7 +84,7 @@ deflate (Half Kite m) = [Half t (foldr1 (.*.) l .*. m) | (t, l) <- [
           linear $ rotMatrix2 (2/5 * pi),
           translation $ rotate2 (1/5 * pi) (Vec2 1 0)])
   ]]
-deflate (Half Dart m) = [Half t (foldr1 (.*.) l .*. m) | (t, l) <- [
+deflate1 (Half Dart m) = [Half t (foldr1 (.*.) l .*. m) | (t, l) <- [
   (Dart, [translation $ rotate2 (-2/5 * pi) (Vec2 1 0),
           linear $ rotMatrix2 (4/5 * pi),
           scaling $ Vec2 (phi - 1) (phi - 1)]),
@@ -82,9 +92,32 @@ deflate (Half Dart m) = [Half t (foldr1 (.*.) l .*. m) | (t, l) <- [
           translation $ Vec2 1 0])
   ]]
 
-realise :: Half -> (Type, [Vec2])
+deflate = concatMap deflate1
+
+type HalfSpace = (Vec3, Scalar)
+type Bounds = [HalfSpace]
+
+data ClipResult = Outside | Across | Inside deriving Eq
+clipHalf :: Bounds -> Half -> ClipResult
+clipHalf b h =
+  let corners = [clipPoint b p | p <- snd $ realise h]
+  in if all (/= Outside) corners
+     then Inside
+     else if all (/= Inside) corners
+          then Outside
+          else Across
+
+clipPoint :: Bounds -> Vec3 -> ClipResult
+clipPoint b x =
+  let ds = [(n &. x) - d | (n, d) <- b]
+  in case ds of
+     _ | any (<0) ds -> Outside
+     _ | all (>0) ds -> Inside
+     otherwise -> Across
+
+realise :: Half -> (Type, [Vec3])
 realise (Half t m) = (t, [
- (trim $ (extendWith 1 x :: Vec3) .* (fromProjective m) :: Vec2)  | x <- [
+ extendWith 1 x .* fromProjective m | x <- [
   Vec2 0 0,
   rotate2 a (Vec2 1 0),
   Vec2 1 0
@@ -133,6 +166,21 @@ drawFrame stateRef = do
   swapBuffers
 
 
+clipHalf' :: Bounds -> Half -> Maybe (Either Half Half)
+clipHalf' b h =
+  case clipHalf b h of
+  Inside -> Just $ Left h
+  Outside -> Nothing
+  Across -> Just $ Right h
+
+-- | Give bounds and some halves, deflate the halves n times.
+--   Return the resulting halves that are entirely within the bounds,
+--   and the resulting halves that are on the bounds.
+clipDeflate b hs 0 = ([], hs)
+clipDeflate b hs n = let (ins', ons') = partitionEithers $ mapMaybe (clipHalf' b) hs
+                         (x, y) = clipDeflate b (deflate ons') (n-1)
+                     in (foldl (\h _ -> deflate h) ins' [1..n] ++ x, y)
+
 drawScene :: FrameState -> IO ()
 drawScene state = do
   clearColor $= bgColor state
@@ -143,8 +191,15 @@ drawScene state = do
   matrixMode $= Modelview 0
   loadIdentity
   lookAt (glvt3 $ cameraPos state) (glvt3 zero) (glvc3 up)
-  let tiles = foldl (\l n -> concatMap deflate l) sun [1 .. deflations state]
-  mapM_ drawTile tiles
+  --glRotate (fsAngle state) vec3Z
+  let tiles = clipDeflate b sun' (deflations state)
+      sun' = [Half Kite (m .*. linear (rotMatrix2 (fsAngle state))) | Half Kite m <- sun]
+      b = [(Vec3 (sin $ a + a') (cos $ a + a') 0, (-0.8)) | a' <- [0, pi/2 .. 2*pi]]
+      a = 0 -- pi/6 -- fsAngle state
+  mapM_ drawTile (fst tiles ++ snd tiles)
+
+  --currentColor $= Color4 1 0 0 1
+  --renderPrimitive Lines $ mapM_ vertex [Vec2 (phi - 1) 0, Vec2 (phi - 1) 0.5]
 
 
 onReshape :: Size -> IO ()
@@ -162,14 +217,14 @@ onReshape (Size x y) = do
 onDisplay :: IORef FrameState -> IO ()
 onDisplay = drawFrame
 
-idleAnimation = False
+idleAnimation = True
 
 onIdle :: IORef FrameState -> IO ()
 onIdle stateRef = do
   oldState <- readIORef stateRef
   let newState = think oldState
   writeIORef stateRef newState
-  when idleAnimation $ drawFrame stateRef
+  when idleAnimation $ postRedisplay Nothing
 
 onKeypress :: IORef FrameState -> KeyboardMouseCallback
 onKeypress stateRef key keyState modifiers position = do
@@ -180,24 +235,16 @@ onKeypress stateRef key keyState modifiers position = do
           (Char 'k', Down) -> Just oldState { deflations = deflations oldState + 1 }
           (Char 'j', Down) -> Just oldState { deflations = deflations oldState - 1 }
           otherwise -> Nothing
-  when (isJust newState) $
+  when (isJust newState) $ do
        writeIORef stateRef $ fromJust newState
-  when (not idleAnimation) $ drawFrame stateRef
+       postRedisplay Nothing
 
 onClose :: IO ()
 onClose = do
   return ()
 
-initialState :: FrameState
-initialState = FrameState {
-  bgColor = Color4 0.4 0.4 1.0 1.0,
-  cameraPos = Vec3 0 0 1,
-  cubeAngle = 0,
-  deflations = 3
-}
-
 think :: FrameState -> FrameState
-think oldState = oldState { cubeAngle = cubeAngle oldState + 0.1 }
+think oldState = oldState { fsAngle = fsAngle oldState + 0.01 }
 
 main :: IO ()
 main = do
