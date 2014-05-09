@@ -34,7 +34,7 @@ data FrameState = FrameState {
 initialState :: FrameState
 initialState = FrameState {
   bgColor = Color4 0.4 0.4 1.0 1.0,
-  cameraPos = Vec3 0 0 (-1),
+  cameraPos = Vec3 0 0 1,
   fsAngle = 0,
   deflations = 6
 }
@@ -117,13 +117,15 @@ clipPoint b x =
 
 realise :: Half -> (Type, [Vec3])
 realise (Half t m) = (t, [
- extendWith 1 x .* fromProjective m | x <- [
+ extendZero (project x m) | x <- [
   Vec2 0 0,
   rotate2 a (Vec2 1 0),
   Vec2 1 0
  ]])
  where a = case t of Kite -> (pi/5)
                      Dart -> (3 * pi/5)
+       project :: Vec2 -> Proj3 -> Vec2
+       project x m = trim $ (extendWith 1 x :: Vec3) .* fromProjective m
 
 strokeColor = Color4 0.5 0.5 1 1
 kiteColor   = Color4 0.8 0.8 1 1
