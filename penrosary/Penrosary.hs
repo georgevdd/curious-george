@@ -241,7 +241,7 @@ onClose = do
 
 main :: IO ()
 main = do
-  initialWindowSize $= Size 800 800
+  initialWindowSize $= Size 851 315
   (progName, args) <- getArgsAndInitialize
   window <- createWindow progName
   stateRef <- newIORef initialState
