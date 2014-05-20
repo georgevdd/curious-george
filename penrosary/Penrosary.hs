@@ -34,7 +34,7 @@ initialState = FrameState {
   bgColor = Color4 1.0 0.4 0.4 1.0,
   cameraPos = Vec3 0 0 1,
   fsAngle = 0,
-  deflations = 1
+  deflations = 8
 }
 
 
@@ -126,8 +126,15 @@ drawTile :: Half -> IO ()
 drawTile t@(Half Kite m) = drawTri t kiteColor
 drawTile t@(Half Dart m) = drawTri t dartColor
 
+shouldDrawAt m =
+  let v@(Vec2 x y) = project (Vec2 0 0) m
+      project x m = trim $ (extendWith 1 x :: Vec3) .* fromProjective m
+      threshold = 1000 / 4 * len (v &- Vec2 2 1) - 100
+  in toInteger (asWord64 (hash (x, y)) `mod` 1000) > floor threshold
+
+
 drawTri :: Half -> Color4 GLfloat -> IO ()
-drawTri tile color = do
+drawTri tile@(Half t m) color = when (shouldDrawAt m) $ do
   let vertices = mapM_ vertex $ (snd . realise) tile
   currentColor $= color
   renderPrimitive Triangles vertices
@@ -146,7 +153,7 @@ glvc3 (Vec3 x y z) = fmap glflt (Vector3 x y z)
 
 
 kite = [Half Kite one]
-sun = [Half Kite (m .*. linear (rotMatrix2 $ n * 2/5 * pi)) |
+sun = [Half Kite (m .*. linear (rotMatrix2 $ n * 2/5 * pi) .*. scaling  (Vec2 5 5 )) |
              Half Kite m <- kite,
              n <- [0..4]]
 
@@ -187,7 +194,7 @@ drawScene state = do
   --glRotate (fsAngle state) vec3Z
   let tiles = clipDeflate b sun' (deflations state)
       sun' = [Half Kite (m .*. linear (rotMatrix2 (fsAngle state))) | Half Kite m <- sun]
-      b = [(Vec3 (sin $ a + a') (cos $ a + a') 0, (-0.8)) | a' <- [0, pi/2 .. 2*pi]]
+      b = [] -- [(Vec3 (sin $ a + a') (cos $ a + a') 0, (-0.8)) | a' <- [0, pi/2 .. 2*pi]]
       a = 0 -- pi/6 -- fsAngle state
   mapM_ drawTile (fst tiles ++ snd tiles)
 
