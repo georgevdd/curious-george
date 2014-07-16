@@ -24,7 +24,7 @@ initialState = FrameState {
   bgColor = Color4 0.4 0.4 1.0 1.0,
   cameraPos = Vec3 0 0 1,
   fsAngle = 0,
-  deflations = 6
+  deflations = 1
 }
 
 strokeColor = Color4 0.5 0.5 1 1
@@ -82,10 +82,28 @@ drawScene state = do
   matrixMode $= Modelview 0
   loadIdentity
   lookAt (glvt3 $ cameraPos state) (glvt3 zero) (glvc3 vec3Y)
+  cullFace $= Just Back
   let tiles = clipDeflate b sun' (deflations state)
       sun' = [Half Kite (m .*. linear (rotMatrix2 (fsAngle state))) | Half Kite m <- sun]
       b = [(Vec3 (sin a') (cos a') 0, (-0.8)) | a' <- [0, pi/2 .. 2*pi]]
   mapM_ drawTile (fst tiles ++ snd tiles)
+
+onKeypress :: IORef FrameState -> KeyboardMouseCallback
+onKeypress stateRef key keyState modifiers position = do
+  oldState <- readIORef stateRef
+
+  let newState =
+        case (key, keyState) of
+          (Char 'k', Down) -> Just oldState { deflations = deflations oldState + 1 }
+          (Char 'j', Down) -> Just oldState { deflations = max (deflations oldState - 1) 0 }
+          otherwise -> Nothing
+  when (isJust newState) $ do
+       writeIORef stateRef $ fromJust newState
+       postRedisplay Nothing
+
+
+think :: FrameState -> FrameState
+think oldState = oldState
 
 onReshape :: Size -> IO ()
 onReshape (Size x y) = do
@@ -102,7 +120,7 @@ onReshape (Size x y) = do
 onDisplay :: IORef FrameState -> IO ()
 onDisplay = drawFrame
 
-idleAnimation = True
+idleAnimation = False
 
 onIdle :: IORef FrameState -> IO ()
 onIdle stateRef = do
@@ -111,25 +129,10 @@ onIdle stateRef = do
   writeIORef stateRef newState
   when idleAnimation $ postRedisplay Nothing
 
-onKeypress :: IORef FrameState -> KeyboardMouseCallback
-onKeypress stateRef key keyState modifiers position = do
-  oldState <- readIORef stateRef
-
-  let newState =
-        case (key, keyState) of
-          (Char 'k', Down) -> Just oldState { deflations = deflations oldState + 1 }
-          (Char 'j', Down) -> Just oldState { deflations = deflations oldState - 1 }
-          otherwise -> Nothing
-  when (isJust newState) $ do
-       writeIORef stateRef $ fromJust newState
-       postRedisplay Nothing
 
 onClose :: IO ()
 onClose = do
   return ()
-
-think :: FrameState -> FrameState
-think oldState = oldState { fsAngle = fsAngle oldState + 0.01 }
 
 main :: IO ()
 main = do
