@@ -1,4 +1,4 @@
-module Main where
+module Penrosary where
 import Control.Monad (when)
 import Data.Maybe
 import Data.Either
@@ -129,7 +129,7 @@ drawTile t@(Half Dart m) = drawTri t dartColor
 shouldDrawAt m =
   let v@(Vec2 x y) = project (Vec2 0 0) m
       project x m = trim $ (extendWith 1 x :: Vec3) .* fromProjective m
-      threshold = 1000 / 4 * len (v &- Vec2 2 1) - 100
+      threshold = 1000 / 3.7 * len (v &- Vec2 3 1.1) - 200
   in toInteger (asWord64 (hash (x, y)) `mod` 1000) > floor threshold
 
 
