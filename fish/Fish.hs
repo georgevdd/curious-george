@@ -1,10 +1,12 @@
 module Main where
 import Control.Monad (when)
-import Data.List (partition)
+import Data.List (iterate, partition)
 import Data.Maybe
 import Graphics.UI.GLUT hiding (Inside, Outside)
 import Data.IORef
 import Data.Array
+
+import Debug.Trace
 
 import Data.Vect.Double
 import Data.Vect.Double.OpenGL
@@ -55,7 +57,10 @@ data Fish = Fish {
   fishSpans :: [(Vec2, Vec2)]
 } deriving (Read, Show)
 
-initialFish = replicate 24 $ Fish 0 40 []
+initialFish :: [Fish]
+initialFish = replicate 25 $ Fish 0 40 []
+
+type Shoal = (Year, [Fish], [Fish])
 
 data FrameState = FrameState {
   fsShoal :: Shoal
@@ -63,7 +68,7 @@ data FrameState = FrameState {
 
 initialState :: FrameState
 initialState = FrameState {
-  fsShoal = (0, initialFish, [])
+  fsShoal = (iterate evolve (0, initialFish, []))!!800
 }
 
 fishLifespan fish = fishDeath fish - fishBirth fish
@@ -77,30 +82,30 @@ fishWidth year fish =
          then curveAt (lifeDone * 2)
          else curveAt ((1 - lifeDone) * 2))
 
-type Shoal = (Year, [Fish], [Fish])
-
 evolve :: Shoal -> Shoal
 evolve (year, liveFishes, deadFishes) = (year+1, liveFishes', deadFishes')
  where
-  newAndOldFishes = arrangeInYear year $ concatMap maybeSpawn liveFishes
-  maybeSpawn fish = if year == (fishBirth fish + fishDeath fish) `div` 2
+  newAndOldFishes = arrangeInYear year $ (concatMap maybeSpawn . concatMap maybeSpawn) liveFishes
+  maybeSpawn fish = if inBounds fish && year == (fishBirth fish + fishDeath fish) `div` 2
                     then if (year `div` (fishLifespan fish `div` 2) `mod` 2 == 0)
                          then [fish, Fish year (year + fishLifespan fish) []]
                          else [Fish year (year + fishLifespan fish) [], fish]
                     else [fish]
   (stillAliveFishes, newlyDeadFishes) = partition stillAlive newAndOldFishes
   stillAlive fish = fishDeath fish > year
-  liveFishes' = concatMap maybeSpawn stillAliveFishes
+  inBounds fish = null (fishSpans fish) || let (l, r) = head $ fishSpans fish in (_1 l < 20 && _1 r > -20)
+  liveFishes' = stillAliveFishes
   deadFishes' = newlyDeadFishes ++ deadFishes
 
-rowFor year = -1 + (fromIntegral year) / 100
+rowFor year = -1.2 + (fromIntegral year) / 200
 
 arrangeInYear year fishes =
   let y = rowFor year
       widths = map (fishWidth year) fishes
       totalWidth = sum widths
-      pts = [Vec2 ((x - totalWidth / 2 + (fishWidth (year `mod` 40) (Fish 0 40 []))/2) / 10) y |
+      pts = [Vec2 ((x - totalWidth / 2 + adjustment) / 20) y |
                     x <- scanl (+) 0 widths]
+      adjustment = (fishWidth ((year `div` 1) `mod` 40) (Fish 0 40 []))/2
       spans = zip pts (tail pts)
       addSpan fish span = fish { fishSpans = span : fishSpans fish }
   in [addSpan fish span | (fish, span) <- zip fishes spans]
@@ -142,17 +147,18 @@ drawScene state = do
   matrixMode $= Modelview 0
   loadIdentity
   lookAt (glvt3 $ Vec3 0 0 1) (glvt3 zero) (glvc3 vec3Y)
-  cullFace $= Just Back
+  -- cullFace $= Just Back
 
   let (year, liveFishes, deadFishes) = fsShoal state
       fishes = liveFishes ++ deadFishes
-      pts = concat [[l, r] | (l, r) <- concatMap fishSpans fishes]
-      vs = mapM_ vertex pts
+      -- vs = [mapM_ vertex $ concat [[l, r] | (l, r) <- fishSpans fish] | fish <- fishes]
+      vs = [mapM_ vertex line | line <- concat [let (a, b) = unzip $ fishSpans fish in [a, b] | fish <- fishes]]
 
   currentColor $= Color4 0 0 0.3 1
-  lineWidth $= 4
+  lineWidth $= 2
   pointSize $= 4
-  renderPrimitive Points vs
+  --renderPrimitive LineStrip vs
+  mapM_ (renderPrimitive LineStrip) vs
   --mapM_ (renderPrimitive LineStrip) vs2
   --currentColor $= Color4 0 0 0 1
   --lineWidth $= 1
@@ -200,13 +206,13 @@ onReshape (Size x y) = do
 onDisplay :: IORef FrameState -> IO ()
 onDisplay = drawFrame
 
-idleAnimation = True
+idleAnimation = False
 
 onIdle :: IORef FrameState -> IO ()
 onIdle stateRef = do
   oldState <- readIORef stateRef
   (_, size) <- get viewport
-  let newState = think size oldState
+  let newState = oldState -- think size oldState
   writeIORef stateRef newState
   when idleAnimation $ postRedisplay Nothing
 
@@ -217,7 +223,7 @@ onClose = do
 
 main :: IO ()
 main = do
-  initialWindowSize $= Size 800 800
+  initialWindowSize $= Size 315 851
   (progName, args) <- getArgsAndInitialize
   window <- createWindow progName
   stateRef <- newIORef initialState
