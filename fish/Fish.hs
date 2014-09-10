@@ -1,5 +1,6 @@
 module Main where
 import Control.Monad (when)
+import Data.List (partition)
 import Data.Maybe
 import Graphics.UI.GLUT hiding (Inside, Outside)
 import Data.IORef
@@ -8,14 +9,13 @@ import Data.Array
 import Data.Vect.Double
 import Data.Vect.Double.OpenGL
 
-data FrameState = FrameState {
-  fsShoal :: Shoal
-} deriving Show
-
-initialState :: FrameState
-initialState = FrameState {
-  fsShoal = (0, replicate 24 $ Fish 0 40)
-}
+bezier :: (Vector v) => Double -> v -> v -> v -> v -> v
+bezier s p0 p1 p2 p3 =
+       (z*z*z) *& p0 &+
+     (3*z*z*s) *& p1 &+
+     (3*z*s*s) *& p2 &+
+       (s*s*s) *& p3
+  where z = 1-s
 
 curve = [bezier s p0 p1 p2 p3 | s <- [0, 0.05 .. 1.0]]
   where p0 = Vec2 0 0
@@ -51,8 +51,20 @@ type Year = Int
 
 data Fish = Fish {
   fishBirth :: Year,
-  fishDeath :: Year
+  fishDeath :: Year,
+  fishSpans :: [(Vec2, Vec2)]
 } deriving (Read, Show)
+
+initialFish = replicate 24 $ Fish 0 40 []
+
+data FrameState = FrameState {
+  fsShoal :: Shoal
+} deriving Show
+
+initialState :: FrameState
+initialState = FrameState {
+  fsShoal = (0, initialFish, [])
+}
 
 fishLifespan fish = fishDeath fish - fishBirth fish
 
@@ -65,18 +77,33 @@ fishWidth year fish =
          then curveAt (lifeDone * 2)
          else curveAt ((1 - lifeDone) * 2))
 
-type Shoal = (Year, [Fish])
+type Shoal = (Year, [Fish], [Fish])
 
 evolve :: Shoal -> Shoal
-evolve (year, fishes) = (year+1, fishes')
+evolve (year, liveFishes, deadFishes) = (year+1, liveFishes', deadFishes')
  where
-  fishes' = concatMap maybeSpawn $ filter live fishes
-  live fish = fishDeath fish > year
+  newAndOldFishes = arrangeInYear year $ concatMap maybeSpawn liveFishes
   maybeSpawn fish = if year == (fishBirth fish + fishDeath fish) `div` 2
                     then if (year `div` (fishLifespan fish `div` 2) `mod` 2 == 0)
-                         then [fish, Fish year (year + fishLifespan fish)]
-                         else [Fish year (year + fishLifespan fish), fish]
+                         then [fish, Fish year (year + fishLifespan fish) []]
+                         else [Fish year (year + fishLifespan fish) [], fish]
                     else [fish]
+  (stillAliveFishes, newlyDeadFishes) = partition stillAlive newAndOldFishes
+  stillAlive fish = fishDeath fish > year
+  liveFishes' = concatMap maybeSpawn stillAliveFishes
+  deadFishes' = newlyDeadFishes ++ deadFishes
+
+rowFor year = -1 + (fromIntegral year) / 100
+
+arrangeInYear year fishes =
+  let y = rowFor year
+      widths = map (fishWidth year) fishes
+      totalWidth = sum widths
+      pts = [Vec2 ((x - totalWidth / 2 + (fishWidth (year `mod` 40) (Fish 0 40 []))/2) / 10) y |
+                    x <- scanl (+) 0 widths]
+      spans = zip pts (tail pts)
+      addSpan fish span = fish { fishSpans = span : fishSpans fish }
+  in [addSpan fish span | (fish, span) <- zip fishes spans]
 
 unitVector :: Int -> Vec3
 unitVector 0 = vec3X
@@ -117,17 +144,11 @@ drawScene state = do
   lookAt (glvt3 $ Vec3 0 0 1) (glvt3 zero) (glvc3 vec3Y)
   cullFace $= Just Back
 
-  let (year, fishes) = fsShoal state
-      widths = map (fishWidth year) fishes
-      totalWidth = sum widths
-      pts = [Vec2 ((x - totalWidth / 2 + (fishWidth (year `mod` 40) (Fish 0 40))/2) / 10)
-                  (-1.2 + (fromIntegral year) / 100) |
-             x <- scanl (+) 0 widths]
+  let (year, liveFishes, deadFishes) = fsShoal state
+      fishes = liveFishes ++ deadFishes
+      pts = concat [[l, r] | (l, r) <- concatMap fishSpans fishes]
       vs = mapM_ vertex pts
 
-      vs2 = [mapM_ vertex [pointwise m c | c <- curve] |
-             m <- [Vec2 1 1, Vec2 (-1) 1, Vec2 1 (-1), Vec2 (-1) (-1)]]
-      vs3 = mapM_ vertex [curveAt y | y <- [0, 0.05 .. 1]]
   currentColor $= Color4 0 0 0.3 1
   lineWidth $= 4
   pointSize $= 4
@@ -155,15 +176,6 @@ think (Size ix iy) (FrameState shoal) = FrameState (evolve shoal)
   --        _ | v' < 0 -> (-v', (-dv))
   --        _ | v' >= sv -> (sv - (v' - sv), (-dv))
   --        otherwise -> (v', dv)
-
-
-bezier :: (Vector v) => Double -> v -> v -> v -> v -> v
-bezier s p0 p1 p2 p3 =
-       (z*z*z) *& p0 &+
-     (3*z*z*s) *& p1 &+
-     (3*z*s*s) *& p2 &+
-       (s*s*s) *& p3
-  where z = 1-s
 
 
 --  fsPts = [Vec2 0 (-1), Vec2 0 (-0.5), Vec2 0.5 (-0.5), Vec2 0.5 0],
