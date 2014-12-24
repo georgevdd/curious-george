@@ -15,6 +15,10 @@ void detectAndDraw( Mat& img,
 String cascadeName = "haarcascade_frontalface_alt.xml";
 String nestedCascadeName = "haarcascade_eye_tree_eyeglasses.xml";
 
+const cv::Size eyeSize(200, 150);
+
+Mat eye(eyeSize, CV_8UC1);
+
 int main( int argc, const char** argv )
 {
     CvCapture* capture = 0;
@@ -78,6 +82,7 @@ int main( int argc, const char** argv )
     }
 
     cvNamedWindow( "result", 1 );
+    cv::namedWindow( "eye", 1 );
 
     if( capture )
     {
@@ -105,7 +110,7 @@ _cleanup_:
         cvReleaseCapture( &capture );
     }
 
-    cvDestroyWindow("result");
+    cv::destroyAllWindows();
 
     return 0;
 }
@@ -163,6 +168,13 @@ void detectAndDraw( Mat& img,
             |CV_HAAR_SCALE_IMAGE
             ,
             Size(30, 30) );
+
+	if (!nestedObjects.empty()) {
+	  const Rect& nr = nestedObjects[0];
+	  Rect imgRect((r->tl() + nr.tl()) * scale, (r->tl() + nr.br()) * scale);
+	  resize(img(imgRect), eye, eye.size(), 0, 0, INTER_LINEAR);
+	}
+
         for( vector<Rect>::const_iterator nr = nestedObjects.begin(); nr != nestedObjects.end(); nr++ )
         {
             center.x = cvRound((r->x + nr->x + nr->width*0.5)*scale);
@@ -172,4 +184,6 @@ void detectAndDraw( Mat& img,
         }
     }
     cv::imshow( "result", img );
+
+    cv::imshow( "eye", eye );
 }
