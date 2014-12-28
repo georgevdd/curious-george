@@ -17,7 +17,15 @@ String nestedCascadeName = "haarcascade_eye_tree_eyeglasses.xml";
 
 const cv::Size eyeSize(200, 150);
 
-Mat eye(eyeSize, CV_8UC1);
+Mat eyes(cv::Size(eyeSize.width * 5, eyeSize.height * 2), CV_8UC3);
+
+struct EyeTrack {
+  vector<Rect> lastSeen;
+  vector<Mat> frames;
+  int numFramesSinceLastSeen;
+};
+
+vector<EyeTrack> tracks;
 
 int main( int argc, const char** argv )
 {
@@ -82,7 +90,7 @@ int main( int argc, const char** argv )
     }
 
     cvNamedWindow( "result", 1 );
-    cv::namedWindow( "eye", 1 );
+    cv::namedWindow( "eyes", 0 );
 
     if( capture )
     {
@@ -113,6 +121,11 @@ _cleanup_:
     cv::destroyAllWindows();
 
     return 0;
+}
+
+std::ostream& operator<< (std::ostream& o, const cv::Size& s) {
+  o << '(' << s.width << ", " << s.height << ')';
+  return o;
 }
 
 void detectAndDraw( Mat& img,
@@ -172,7 +185,7 @@ void detectAndDraw( Mat& img,
 	if (!nestedObjects.empty()) {
 	  const Rect& nr = nestedObjects[0];
 	  Rect imgRect((r->tl() + nr.tl()) * scale, (r->tl() + nr.br()) * scale);
-	  resize(img(imgRect), eye, eye.size(), 0, 0, INTER_LINEAR);
+	  resize(img(imgRect), eyes(Rect(Point(0,0), eyeSize)), eyeSize, 0, 0, INTER_LINEAR);
 	}
 
         for( vector<Rect>::const_iterator nr = nestedObjects.begin(); nr != nestedObjects.end(); nr++ )
@@ -185,5 +198,5 @@ void detectAndDraw( Mat& img,
     }
     cv::imshow( "result", img );
 
-    cv::imshow( "eye", eye );
+    cv::imshow( "eyes", eyes );
 }
