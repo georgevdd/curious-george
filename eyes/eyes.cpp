@@ -8,24 +8,40 @@
 using namespace std;
 using namespace cv;
 
-void detectAndDraw( Mat& img,
-                   CascadeClassifier& cascade, CascadeClassifier& nestedCascade,
-                   double scale);
+void detect( Mat& img,
+             CascadeClassifier& cascade, CascadeClassifier& nestedCascade,
+             double scale);
+void showEyes();
+void drawTracks(Mat& img);
 
 String cascadeName = "haarcascade_frontalface_alt.xml";
 String nestedCascadeName = "haarcascade_eye_tree_eyeglasses.xml";
 
+const int maxEyes(8);
 const cv::Size eyeSize(200, 150);
 
-Mat eyes(cv::Size(eyeSize.width * 5, eyeSize.height * 2), CV_8UC3);
+const Scalar colors[maxEyes] = {
+        CV_RGB(0,0,255),
+        CV_RGB(0,128,255),
+        CV_RGB(0,255,255),
+        CV_RGB(0,255,0),
+        CV_RGB(255,128,0),
+        CV_RGB(255,255,0),
+        CV_RGB(255,0,0),
+        CV_RGB(255,0,255)} ;
+
+
+Mat eyes(cv::Size(eyeSize.width * 4, eyeSize.height * 2), CV_8UC3);
 
 struct EyeTrack {
   vector<Rect> lastSeen;
   vector<Mat> frames;
   int numFramesSinceLastSeen;
+
+  EyeTrack(): numFramesSinceLastSeen(0) {}
 };
 
-vector<EyeTrack> tracks;
+vector<EyeTrack> eyeTracks(maxEyes);
 
 int main( int argc, const char** argv )
 {
@@ -95,7 +111,7 @@ int main( int argc, const char** argv )
     if( capture )
     {
         cout << "In capture ..." << endl;
-        for(;;)
+        while(true)
         {
             IplImage* iplImg = cvQueryFrame( capture );
             frame = iplImg;
@@ -106,7 +122,10 @@ int main( int argc, const char** argv )
             else
                 flip( frame, frameCopy, 0 );
 
-            detectAndDraw( frameCopy, cascade, nestedCascade, scale );
+            detect( frameCopy, cascade, nestedCascade, scale );
+	    drawTracks(frameCopy);
+	    cv::imshow( "result", frameCopy );
+	    showEyes();
 
             if( waitKey( 10 ) >= 0 )
                 goto _cleanup_;
@@ -123,26 +142,45 @@ _cleanup_:
     return 0;
 }
 
+void showEyes() {
+  for (int i = 0; i < eyeTracks.size(); ++i) {
+    const EyeTrack& eyeTrack = eyeTracks[i];
+    if (!eyeTrack.frames.empty()) {
+      eyeTrack.frames.back().copyTo(
+        eyes(Rect(Point(eyeSize.width * (i % 4),
+                        eyeSize.height * (i / 4)),
+                  eyeSize))
+      );
+    }
+  }
+  cv::imshow( "eyes", eyes );
+}
+
+void drawTracks(Mat& img) {
+  for (int i = 0; i < eyeTracks.size(); ++i) {
+    const EyeTrack& eyeTrack = eyeTracks[i];
+    for (int j = 0; j < eyeTrack.lastSeen.size(); ++j) {
+      rectangle(img, eyeTrack.lastSeen[j], colors[i]);
+    }
+  }
+}
+
 std::ostream& operator<< (std::ostream& o, const cv::Size& s) {
   o << '(' << s.width << ", " << s.height << ')';
   return o;
 }
 
-void detectAndDraw( Mat& img,
-                   CascadeClassifier& cascade, CascadeClassifier& nestedCascade,
-                   double scale)
+template<typename Tp_> Rect_<Tp_> operator*(const Rect_<Tp_>& r, double scale) {
+  return Rect_<Tp_>(r.x*scale, r.y*scale, r.width*scale, r.height*scale);
+}
+
+void detect( Mat& img,
+             CascadeClassifier& cascade, CascadeClassifier& nestedCascade,
+             double scale)
 {
     int i = 0;
     double t = 0;
     vector<Rect> faces;
-    const static Scalar colors[] =  { CV_RGB(0,0,255),
-        CV_RGB(0,128,255),
-        CV_RGB(0,255,255),
-        CV_RGB(0,255,0),
-        CV_RGB(255,128,0),
-        CV_RGB(255,255,0),
-        CV_RGB(255,0,0),
-        CV_RGB(255,0,255)} ;
     Mat gray, smallImg( cvRound (img.rows/scale), cvRound(img.cols/scale), CV_8UC1 );
 
     cvtColor( img, gray, CV_BGR2GRAY );
@@ -169,7 +207,6 @@ void detectAndDraw( Mat& img,
         center.x = cvRound((r->x + r->width*0.5)*scale);
         center.y = cvRound((r->y + r->height*0.5)*scale);
         radius = cvRound((r->width + r->height)*0.25*scale);
-        circle( img, center, radius, color, 3, 8, 0 );
         if( nestedCascade.empty() )
             continue;
         smallImgROI = smallImg(*r);
@@ -182,21 +219,22 @@ void detectAndDraw( Mat& img,
             ,
             Size(30, 30) );
 
-	if (!nestedObjects.empty()) {
-	  const Rect& nr = nestedObjects[0];
-	  Rect imgRect((r->tl() + nr.tl()) * scale, (r->tl() + nr.br()) * scale);
-	  resize(img(imgRect), eyes(Rect(Point(0,0), eyeSize)), eyeSize, 0, 0, INTER_LINEAR);
+	for (int i = 0; i < nestedObjects.size(); ++i) {
+	  if (!(i < eyeTracks.size())) break;
+
+	  const Rect& nr = nestedObjects[i];
+	  Rect imgRect((nr + r->tl()) * scale);
+
+	  eyeTracks[i].frames.push_back(Mat());
+	  resize(img(imgRect), eyeTracks[i].frames.back(), eyeSize, 0, 0, INTER_LINEAR);
+
+	  eyeTracks[i].lastSeen.push_back(imgRect);
 	}
 
         for( vector<Rect>::const_iterator nr = nestedObjects.begin(); nr != nestedObjects.end(); nr++ )
         {
-            center.x = cvRound((r->x + nr->x + nr->width*0.5)*scale);
-            center.y = cvRound((r->y + nr->y + nr->height*0.5)*scale);
-            radius = cvRound((nr->width + nr->height)*0.25*scale);
-            circle( img, center, radius, color, 3, 8, 0 );
+	  rectangle(img, (*nr + r->tl())*scale, color, 3);
         }
+        rectangle( img, *r * scale, color, 3);
     }
-    cv::imshow( "result", img );
-
-    cv::imshow( "eyes", eyes );
 }
