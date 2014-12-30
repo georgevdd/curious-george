@@ -170,8 +170,17 @@ std::ostream& operator<< (std::ostream& o, const cv::Size& s) {
   return o;
 }
 
+std::ostream& operator<< (std::ostream& o, const cv::Rect& r) {
+  o << "Rect(" << r.tl() << ", " << r.size() << ')';
+  return o;
+}
+
 template<typename Tp_> Rect_<Tp_> operator*(const Rect_<Tp_>& r, double scale) {
   return Rect_<Tp_>(r.x*scale, r.y*scale, r.width*scale, r.height*scale);
+}
+
+Point center(const Rect& r) {
+  return (r.tl() + r.br()) * 0.5;
 }
 
 void detect( Mat& img,
@@ -181,10 +190,10 @@ void detect( Mat& img,
     int i = 0;
     double t = 0;
     vector<Rect> faces;
-    Mat gray, smallImg( cvRound (img.rows/scale), cvRound(img.cols/scale), CV_8UC1 );
+    Mat gray, smallImg;
 
     cvtColor( img, gray, CV_BGR2GRAY );
-    resize( gray, smallImg, smallImg.size(), 0, 0, INTER_LINEAR );
+    resize( gray, smallImg, Size(), 1/scale, 1/scale, INTER_LINEAR );
     equalizeHist( smallImg, smallImg );
 
     t = (double)cvGetTickCount();
@@ -197,16 +206,13 @@ void detect( Mat& img,
         Size(30, 30) );
     t = (double)cvGetTickCount() - t;
     printf( "detection time = %g ms\n", t/((double)cvGetTickFrequency()*1000.) );
+
+    vector<Rect> allEyes;
     for( vector<Rect>::const_iterator r = faces.begin(); r != faces.end(); r++, i++ )
     {
         Mat smallImgROI;
         vector<Rect> nestedObjects;
-        Point center;
-        Scalar color = colors[i%8];
-        int radius;
-        center.x = cvRound((r->x + r->width*0.5)*scale);
-        center.y = cvRound((r->y + r->height*0.5)*scale);
-        radius = cvRound((r->width + r->height)*0.25*scale);
+
         if( nestedCascade.empty() )
             continue;
         smallImgROI = smallImg(*r);
@@ -219,22 +225,41 @@ void detect( Mat& img,
             ,
             Size(30, 30) );
 
-	for (int i = 0; i < nestedObjects.size(); ++i) {
-	  if (!(i < eyeTracks.size())) break;
-
-	  const Rect& nr = nestedObjects[i];
-	  Rect imgRect((nr + r->tl()) * scale);
-
-	  eyeTracks[i].frames.push_back(Mat());
-	  resize(img(imgRect), eyeTracks[i].frames.back(), eyeSize, 0, 0, INTER_LINEAR);
-
-	  eyeTracks[i].lastSeen.push_back(imgRect);
+	for (vector<Rect>::const_iterator e = nestedObjects.begin(); e != nestedObjects.end(); ++e) {
+	  allEyes.push_back((*e + r->tl()) * scale);
 	}
-
-        for( vector<Rect>::const_iterator nr = nestedObjects.begin(); nr != nestedObjects.end(); nr++ )
-        {
-	  rectangle(img, (*nr + r->tl())*scale, color, 3);
-        }
-        rectangle( img, *r * scale, color, 3);
     }
+
+    i=0;
+    for (vector<Rect>::const_iterator e = allEyes.begin(); e != allEyes.end(); ++e, ++i) {
+      if (!(i < eyeTracks.size())) break;
+
+      const double eyeAspect = double(eyeSize.height) / eyeSize.width;
+      Rect srcRect(0, 0, e->width, e->width * eyeAspect);
+      srcRect -= center(srcRect);
+      srcRect += center(*e);
+
+      eyeTracks[i].frames.push_back(Mat());
+      resize(img(srcRect), eyeTracks[i].frames.back(), eyeSize, 0, 0, INTER_LINEAR);
+
+      eyeTracks[i].lastSeen.push_back(*e);
+    }
+
+    for (vector<EyeTrack>::iterator t = eyeTracks.begin(); t != eyeTracks.end(); ++t) {
+      if (t->frames.size() == 20) {
+	*t = EyeTrack();
+      }
+    }
+
+    i=0;
+    for(vector<Rect>::const_iterator r = faces.begin(); r != faces.end(); ++r, ++i) {
+      Scalar color = colors[i%8];
+      rectangle(img, *r * scale, color, 3);
+    }
+
+  i=0;
+  for(vector<Rect>::const_iterator e = allEyes.begin(); e != allEyes.end(); ++e, ++i) {
+    const Scalar& color = colors[i % maxEyes];
+    rectangle(img, *e, color, 3);
+  }
 }
