@@ -1,26 +1,19 @@
+#include "eyes.hpp"
+
+#include <vector>
+
 #include "opencv2/objdetect/objdetect.hpp"
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
-
-#include <iostream>
-#include <stdio.h>
+#include "opencv2/core.hpp"
 
 using namespace std;
 using namespace cv;
 
-void detect( Mat& img,
-             CascadeClassifier& cascade, CascadeClassifier& nestedCascade,
-             double scale);
-void showEyes();
-void drawTracks(Mat& img);
-
-String cascadeName = "haarcascade_frontalface_alt.xml";
-String nestedCascadeName = "haarcascade_eye_tree_eyeglasses.xml";
-
-const int maxEyes(8);
+const int maxEyes(2);
 const cv::Size eyeSize(200, 150);
 
-const Scalar colors[maxEyes] = {
+const Scalar colors[] = {
         CV_RGB(0,0,255),
         CV_RGB(0,128,255),
         CV_RGB(0,255,255),
@@ -33,114 +26,7 @@ const Scalar colors[maxEyes] = {
 
 Mat eyes(cv::Size(eyeSize.width * 4, eyeSize.height * 2), CV_8UC3);
 
-struct EyeTrack {
-  vector<Rect> lastSeen;
-  vector<Mat> frames;
-  int numFramesSinceLastSeen;
-
-  EyeTrack(): numFramesSinceLastSeen(0) {}
-};
-
 vector<EyeTrack> eyeTracks(maxEyes);
-
-int main( int argc, const char** argv )
-{
-    CvCapture* capture = 0;
-    Mat frame, frameCopy;
-    const String scaleOpt = "--scale=";
-    size_t scaleOptLen = scaleOpt.length();
-    const String cascadeOpt = "--cascade=";
-    size_t cascadeOptLen = cascadeOpt.length();
-    const String nestedCascadeOpt = "--nested-cascade";
-    size_t nestedCascadeOptLen = nestedCascadeOpt.length();
-    String inputName;
-
-    CascadeClassifier cascade, nestedCascade;
-    double scale = 2;
-
-    for( int i = 1; i < argc; i++ )
-    {
-        cout << "Processing " << i << " " <<  argv[i] << endl;
-        if( cascadeOpt.compare( 0, cascadeOptLen, argv[i], cascadeOptLen ) == 0 )
-        {
-            cascadeName.assign( argv[i] + cascadeOptLen );
-            cout << "  from which we have cascadeName= " << cascadeName << endl;
-        }
-        else if( nestedCascadeOpt.compare( 0, nestedCascadeOptLen, argv[i], nestedCascadeOptLen ) == 0 )
-        {
-            if( argv[i][nestedCascadeOpt.length()] == '=' )
-                nestedCascadeName.assign( argv[i] + nestedCascadeOpt.length() + 1 );
-            if( !nestedCascade.load( nestedCascadeName ) )
-                cerr << "WARNING: Could not load classifier cascade for nested objects" << endl;
-        }
-        else if( scaleOpt.compare( 0, scaleOptLen, argv[i], scaleOptLen ) == 0 )
-        {
-            if( !sscanf( argv[i] + scaleOpt.length(), "%lf", &scale ) || scale < 1 )
-                scale = 2;
-            cout << " from which we read scale = " << scale << endl;
-        }
-        else if( argv[i][0] == '-' )
-        {
-            cerr << "WARNING: Unknown option %s" << argv[i] << endl;
-        }
-        else
-            inputName.assign( argv[i] );
-    }
-
-    if( !cascade.load( cascadeName ) )
-    {
-        cerr << "ERROR: Could not load classifier cascade" << endl;
-        return -1;
-    }
-
-    if( inputName.empty() || (isdigit(inputName.c_str()[0]) && inputName.c_str()[1] == '\0') )
-    {
-        capture = cvCaptureFromCAM( inputName.empty() ? 0 : inputName.c_str()[0] - '0' );
-        int c = inputName.empty() ? 0 : inputName.c_str()[0] - '0' ;
-        if(!capture) cout << "Capture from CAM " <<  c << " didn't work" << endl;
-    }
-    else if( inputName.size() )
-    {
-        capture = cvCaptureFromAVI( inputName.c_str() );
-        if(!capture) cout << "Capture from AVI didn't work" << endl;
-    }
-
-    cvNamedWindow( "result", 1 );
-    cv::namedWindow( "eyes", 0 );
-
-    if( capture )
-    {
-        cout << "In capture ..." << endl;
-        while(true)
-        {
-            IplImage* iplImg = cvQueryFrame( capture );
-            frame = iplImg;
-            if( frame.empty() )
-                break;
-            if( iplImg->origin == IPL_ORIGIN_TL )
-                frame.copyTo( frameCopy );
-            else
-                flip( frame, frameCopy, 0 );
-
-            detect( frameCopy, cascade, nestedCascade, scale );
-	    drawTracks(frameCopy);
-	    cv::imshow( "result", frameCopy );
-	    showEyes();
-
-            if( waitKey( 10 ) >= 0 )
-                goto _cleanup_;
-        }
-
-        waitKey(0);
-
-_cleanup_:
-        cvReleaseCapture( &capture );
-    }
-
-    cv::destroyAllWindows();
-
-    return 0;
-}
 
 void showEyes() {
   for (int i = 0; i < eyeTracks.size(); ++i) {
@@ -153,7 +39,7 @@ void showEyes() {
       );
     }
   }
-  cv::imshow( "eyes", eyes );
+  imshow( "eyes", eyes );
 }
 
 void drawTracks(Mat& img) {
@@ -161,6 +47,7 @@ void drawTracks(Mat& img) {
     const EyeTrack& eyeTrack = eyeTracks[i];
     for (int j = 0; j < eyeTrack.lastSeen.size(); ++j) {
       rectangle(img, eyeTrack.lastSeen[j], colors[i]);
+      break;
     }
   }
 }
@@ -181,6 +68,59 @@ template<typename Tp_> Rect_<Tp_> operator*(const Rect_<Tp_>& r, double scale) {
 
 Point center(const Rect& r) {
   return (r.tl() + r.br()) * 0.5;
+}
+
+
+vector <pair<int, int> > assignTracksToEyes(const vector<EyeTrack>& eyeTracks, const vector<Rect>& allEyes) {
+  vector<pair<int, int> > result;
+
+  vector<int> liveEyes;
+  for (int i = 0; i < eyeTracks.size(); ++i)
+    if (!eyeTracks[i].lastSeen.empty())
+      liveEyes.push_back(i);
+
+  vector<vector<double> > dists(liveEyes.size(), vector<double>(allEyes.size()));
+  for (int i = 0; i < liveEyes.size(); ++i) {
+    const EyeTrack& track = eyeTracks[liveEyes[i]];
+    for (int j = 0; j < allEyes.size(); ++j) {
+      dists[i][j] = norm(center(track.lastSeen.back()) -
+			 center(allEyes[j]));
+    }
+  }
+
+  while (!dists.empty() && !dists[0].empty()) {
+    int minI, minJ;
+    double minDist = std::numeric_limits<double>::max();
+    for (int i = 0; i < dists.size(); ++i) {
+      vector<double>::const_iterator rowMin = min_element(dists[i].begin(), dists[i].end());
+      if (*rowMin < minDist) {
+		minI = i;
+		minJ = rowMin - dists[i].begin();
+		minDist = *rowMin;
+	  }
+    }
+    result.push_back(make_pair(liveEyes[minI], minJ));
+
+    dists.erase(dists.begin() + minI);
+    for (int i = 0; i < dists.size(); ++i)
+      dists[i].erase(dists[i].begin() + minJ);
+  }
+  
+  return result;
+}
+
+void record(EyeTrack& track, const Mat& img, const Rect& eyeSrc) {
+  // Make a new rectangle centred on the same point, and as wide,
+  // but with the target aspect ratio
+  const double eyeAspect = double(eyeSize.height) / eyeSize.width;
+  Rect srcRect(0, 0, eyeSrc.width, eyeSrc.width * eyeAspect);
+  srcRect -= center(srcRect);
+  srcRect += center(eyeSrc);
+
+  track.frames.push_back(Mat());
+  resize(img(srcRect), track.frames.back(), eyeSize, 0, 0, INTER_LINEAR);
+  track.lastSeen.push_back(eyeSrc);
+  track.numFramesSinceLastSeen = 0;
 }
 
 void detect( Mat& img,
@@ -225,29 +165,46 @@ void detect( Mat& img,
             ,
             Size(30, 30) );
 
-	for (vector<Rect>::const_iterator e = nestedObjects.begin(); e != nestedObjects.end(); ++e) {
-	  allEyes.push_back((*e + r->tl()) * scale);
-	}
+		for (vector<Rect>::const_iterator e = nestedObjects.begin(); e != nestedObjects.end(); ++e) {
+		  allEyes.push_back((*e + r->tl()) * scale);
+		}
     }
 
-    i=0;
-    for (vector<Rect>::const_iterator e = allEyes.begin(); e != allEyes.end(); ++e, ++i) {
-      if (!(i < eyeTracks.size())) break;
+    vector<pair<int, int> > matching = assignTracksToEyes(eyeTracks, allEyes);
+    vector<bool> foundTracks(eyeTracks.size());
+    vector<bool> foundEyes(allEyes.size());
+    for (vector<pair<int, int> >::const_iterator trackToEye = matching.begin();
+	 trackToEye != matching.end();
+	 ++trackToEye) {
+      foundTracks[trackToEye->first] = true;
+      foundEyes[trackToEye->second] = true;
+      const Rect& eyeSrc = allEyes[trackToEye->second];
+      EyeTrack& track = eyeTracks[trackToEye->first];
 
-      const double eyeAspect = double(eyeSize.height) / eyeSize.width;
-      Rect srcRect(0, 0, e->width, e->width * eyeAspect);
-      srcRect -= center(srcRect);
-      srcRect += center(*e);
+      record(track, img, eyeSrc);
+    }
 
-      eyeTracks[i].frames.push_back(Mat());
-      resize(img(srcRect), eyeTracks[i].frames.back(), eyeSize, 0, 0, INTER_LINEAR);
+    for (int i = 0; i < eyeTracks.size(); ++i) {
+      if (!eyeTracks[i].lastSeen.empty() && !foundTracks[i]) {
+        int framesSinceLastSeen = ++eyeTracks[i].numFramesSinceLastSeen;
+	if (framesSinceLastSeen > 5)
+	  eyeTracks[i] = EyeTrack();
+      }
+    }
 
-      eyeTracks[i].lastSeen.push_back(*e);
+    int j = 0;
+    for (int i = 0; i < allEyes.size(); ++i) {
+      if (!foundEyes[i]) {
+	while (j < eyeTracks.size() && !eyeTracks[j].lastSeen.empty()) j++;
+	if (j == eyeTracks.size()) break;
+	record(eyeTracks[j], img, allEyes[i]);
+      }
     }
 
     for (vector<EyeTrack>::iterator t = eyeTracks.begin(); t != eyeTracks.end(); ++t) {
-      if (t->frames.size() == 20) {
-	*t = EyeTrack();
+      if (t->frames.size() >= 10) {
+        t->frames.erase(t->frames.begin(), t->frames.end() - 10);
+	t->lastSeen.erase(t->lastSeen.begin(), t->lastSeen.end() - 10);
       }
     }
 
@@ -258,8 +215,8 @@ void detect( Mat& img,
     }
 
   i=0;
-  for(vector<Rect>::const_iterator e = allEyes.begin(); e != allEyes.end(); ++e, ++i) {
-    const Scalar& color = colors[i % maxEyes];
-    rectangle(img, *e, color, 3);
-  }
+  // for(vector<Rect>::const_iterator e = allEyes.begin(); e != allEyes.end(); ++e, ++i) {
+  //   const Scalar& color = colors[i % maxEyes];
+  //   rectangle(img, *e, color, 3);
+  // }
 }
