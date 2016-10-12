@@ -1,8 +1,10 @@
 module Euler where
 
+import Control.Monad.State as State
 import Data.Char (isAlpha, ord)
-import Data.List (find, group, inits, mapAccumL, maximumBy, minimum, sort, tails)
-import Data.Maybe (fromJust)
+import Data.List (elemIndex, find, group, inits, mapAccumL, maximumBy, minimum, sort,
+                  tails, unfoldr)
+import Data.Maybe (fromJust, fromMaybe)
 import Data.Map as M hiding (foldl, foldr, map)
 import Data.Set as S hiding (foldl, foldr, map)
 import Data.Ord (comparing)
@@ -141,25 +143,50 @@ euler23 = sum [x | x <- [1..28123], not $ expressible x]
 euler24 = read $ concat [show d | d <- (lexPerms [0..9])!!(1000000-1)] :: Integer
 euler25 = length (takeWhile (<10^(1000-1)) fibs) + 1
 
+euler26 =
+ let nextDigit n d = if n == 0 then Nothing else Just (quotRem n d)
+     longDiv n d = unfoldr (liftM (\x -> (x, 10 * snd x)) . (flip nextDigit $ d)) n
+     cycleLength d = fmap (+1) . msum . snd $ mapAccumL (\l -> \e -> (e:l, elemIndex e l)) [] (longDiv 1 d)
+ in maximumBy (comparing $ fromMaybe 0 . cycleLength) [1..1000]
 
-euler67 = do
+euler67_broken = do
   triText <- readFile "euler/p067_triangle.txt"
   let tri = [[(read n) :: Integer | n <- words l] | l <- lines triText]
   return $ triMax tri
 
 
+{-- This is all broken euler67 stuff
 -- Input is lower and upper bounds, inclusive
 -- Result is (worst cost, max comparisons)
-worstCost 1 1 = (0, 0, [])
-worstCost 1 y = Data.List.minimum [recCost 1 y k | k <- [1..y]]
-worstCost x y = let (c, n, l) = worstCost 1 (y-x+1)
-                in (c + (x-1)*n, n, [k+x-1 | k <- l])
+worstCost :: Integer
+          -> Integer
+          -> State (Map Integer (Integer, Integer, [Integer]))
+                   (Integer, Integer, [Integer])
+worstCost 0 0 = return (0, 0, [])
+worstCost 0 y = do
+  m <- get
+  case M.lookup y m of
+       Just r -> return r
+       Nothing -> do
+           cs <- mapM (recCost 0 y) [0..y]
+           m' <- get
+           let r = minimum cs
+           --put $ M.insert y r m'
+           return r
+worstCost x y = do
+  (c, n, l) <- worstCost 0 (y-x)
+  return (c + x*n, n, [k+x | k <- l])
 -- Worst cost of searching (x, y) if the first probe is at k
-recCost x y k = let (lc, ln, ll) = if x < k then (worstCost x (k-1)) else (0, 0, [])
-                    (rc, rn, rl) = if y > k then (worstCost (k+1) y) else (0, 0, [])
-                    (c, n, l) = if lc >= rc then (lc, ln, ll) else (rc, rn, rl)
-                in (k + c, 1 + n, k:l)
+recCost x y k = do
+  lower <- if x < k then (worstCost x (k-1)) else return (0, 0, [])
+  upper <- if y > k then (worstCost (k+1) y) else return (0, 0, [])
+  let (c, n, l) = max lower upper
+  return (k + c, 1 + n, k:l)
 
+f y = mapM (worstCost 1) [1..y]
+
+g y = evalState (f y) M.empty
+--}
 
 
 euler8data = "73167176531330624919225119674426574742355349194934" ++
@@ -364,3 +391,4 @@ euler22data = do
   namesText <- fmap Text.pack $ readFile "euler/p022_names.txt"
   let namesQuoted = Text.split (==',') namesText
   return [unpack $ Text.filter (/='\"') n | n <- namesQuoted]
+
