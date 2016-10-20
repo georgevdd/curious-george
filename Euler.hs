@@ -149,6 +149,51 @@ euler26 =
      cycleLength d = fmap (+1) . msum . snd $ mapAccumL (\l -> \e -> (e:l, elemIndex e l)) [] (longDiv 1 d)
  in maximumBy (comparing $ fromMaybe 0 . cycleLength) [1..1000]
 
+-- euler27
+-- b must be prime otherwise n=0 is composite
+-- a+b must be even otherwise n=1 == 1+a+b is composite
+
+type Sieve = (S.Set Int, [Int])
+emptySieve :: Sieve
+emptySieve = (S.empty, primes)
+
+testPrime :: Int -> State Sieve Bool
+testPrime x = do
+  (cache, ps) <- get
+  when (x >= head ps)
+       (modify (fillCacheTo x))
+  cc <- gets fst
+  return $ x `S.member` cc
+ where
+  fillCacheTo x (cache, ps) =
+    let (more, ps') = break (>x) ps
+    in (cache `S.union` (S.fromList more), ps')
+
+takeWhileM :: Monad m => (a -> m Bool) -> [a] -> m [a]
+takeWhileM pred (x:xs) = do
+  p <- pred x
+  if p
+  then do xs' <- takeWhileM pred xs
+          return (x:xs')
+  else return []
+takeWhileM _ [] = return []
+
+euler27 = let (a, b, _) = bestTriple in a*b
+ where
+  quadratic a b n = n*n + a*n + b
+  coeffs = do
+    b <- concat [[x, -x] | x <- takeWhile (<= 1000) primes]
+    a <- concat [[x, -x] | x <- if b `mod` 2 == 0
+                                then [0, 2 .. 1000]
+                                else [1, 3 .. 1000]]
+    return (a, b)
+  primeRun a b = fmap length $ takeWhileM (testPrime . quadratic a b) [0..]
+  runLength a b = do l <- primeRun a b
+                     return (a, b, l)
+  runLengths = mapM (uncurry runLength) coeffs
+  triples = evalState runLengths emptySieve
+  bestTriple = maximumBy (comparing (\(a, b, k) -> k)) triples
+
 euler67_broken = do
   triText <- readFile "euler/p067_triangle.txt"
   let tri = [[(read n) :: Integer | n <- words l] | l <- lines triText]
