@@ -194,6 +194,8 @@ euler27 = let (a, b, _) = bestTriple in a*b
   triples = evalState runLengths emptySieve
   bestTriple = maximumBy (comparing (\(a, b, k) -> k)) triples
 
+euler28 = 1 + 4 * sum [4*k*k + k + 1 | k <- [1..500]]
+
 euler67_broken = do
   triText <- readFile "euler/p067_triangle.txt"
   let tri = [[(read n) :: Integer | n <- words l] | l <- lines triText]
