@@ -2,15 +2,15 @@ module Euler where
 
 import Control.Monad.State as State
 import Data.Char (isAlpha, ord)
-import Data.List (elemIndex, find, group, inits, mapAccumL, maximumBy, minimum, sort,
-                  tails, unfoldr)
+import Data.List (elemIndex, find, group, inits, mapAccumL, maximumBy, minimum, 
+                  partition, permutations, sort, tails, unfoldr)
 import Data.Maybe (fromJust, fromMaybe)
 import Data.Map as M hiding (foldl, foldr, map)
 import Data.Set as S hiding (foldl, foldr, map)
 import Data.Ord (comparing)
 import Data.Text as Text (filter, pack, split, unpack)
 
-import Data.List (permutations)
+import Prelude as P
 
 x `divides` y = y `mod` x == 0
 
@@ -81,7 +81,8 @@ febDays year | year `mod` 400 == 0 = 29
              | year `mod` 4 == 0 = 29
              | otherwise = 28
 
-digits = map ((read :: String -> Integer) . return) . show 
+digits = map ((read :: String -> Integer) . return) . show
+fromDigits = foldl (\n d -> 10 * n + d) 0
 
 amicable x = let y = d(x) in y /= x && d(y) == x
   where d(x) = sum $ divisors x
@@ -92,6 +93,18 @@ lexPerms l = concat [[x:l'' | l'' <- lexPerms l'] | (x, l') <- subs l]
   where
     subs l  = [(head t, i ++ tail t) |
                (i, t) <- init $ zip (Data.List.inits l) (Data.List.tails l)]
+
+choices' :: [a] -> Int -> [([a], [a])]
+choices' []     0 = [([], [])]
+choices' []     _ = []
+choices' (x:xs) r = [(x:ys, zs) | (ys, zs) <- choices' xs (r-1)] ++
+                    [(ys, x:zs) | (ys, zs) <- choices' xs  r   ]
+
+(.:) = (.) . (.)
+choices = map fst .: choices'
+
+partitions [] = [([], [])]
+partitions (x:xs) = concat [[(x:ys, zs), (ys, x:zs)] | (ys, zs) <- partitions xs]
 
 euler1 = sum [x | x <- [1..999], 3 `divides` x || 5 `divides` x]
 euler2 = sum [x | x <- takeWhile (< 4000000) fibs, 2 `divides` x]
@@ -195,6 +208,35 @@ euler27 = let (a, b, _) = bestTriple in a*b
   bestTriple = maximumBy (comparing (\(a, b, k) -> k)) triples
 
 euler28 = 1 + 4 * sum [4*k*k + k + 1 | k <- [1..500]]
+euler29 = S.size $ foldr1 S.union [S.fromList [a^b | b <- [2..100]] | a <- [2..100]]
+euler30 = sum [x | x <- [1..100000], sum [d^4 | d <- digits x] == x] - 1
+
+changes :: Int -> Int -> [[Int]]
+changes m p = do
+  coin <- denoms
+  if coin > p || coin > m then []
+  else if coin == p then [[coin]]
+       else [(coin:rest) | rest <- changes coin (p-coin)]
+ where
+  denoms = reverse [1, 2, 5, 10, 20, 50, 100, 200] 
+
+euler31 = length $ changes 200 200
+
+-- If x has p digits and y has q digits then x*y has either p+q-1 digits or
+-- p+q digits. If x*y == z where z has r digits, then r == p+q-1 or r == p+q.
+-- If p+q+r == 9 then p+q+p+q-1 == 9 or p+q+p+q == 9. The second of these is
+-- not possible so p+q == 5.
+euler32 = P.sum $ S.toList $ S.fromList pandigitals
+ where
+  pandigitals = do
+   (xy_digits, z_digits) <- choices' [1..9] 5
+   (x_digits, y_digits) <- P.filter neither_null $ partitions xy_digits
+   x <- fmap fromDigits $ permutations x_digits
+   y <- fmap fromDigits $ permutations y_digits
+   z <- fmap fromDigits $ permutations z_digits
+   if x * y == z then [z] else []
+  neither_null (a, b) = not (P.null a || P.null b)
+
 
 euler67_broken = do
   triText <- readFile "euler/p067_triangle.txt"
