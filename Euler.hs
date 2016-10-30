@@ -2,8 +2,8 @@ module Euler where
 
 import Control.Monad.State as State
 import Data.Char (isAlpha, ord)
-import Data.List (elemIndex, find, group, inits, mapAccumL, maximumBy, minimum,
-                  partition, permutations, sort, tails, unfoldr)
+import Data.List (elemIndex, find, group, groupBy, inits, mapAccumL, maximumBy, minimum,
+                  partition, permutations, sort, sortBy, tails, unfoldr)
 import Data.Maybe (fromJust, fromMaybe)
 import Data.Map as M hiding (foldl, foldr, map)
 import Data.Set as S hiding (foldl, foldr, map)
@@ -36,12 +36,18 @@ palindromes b n = let ps = palindromes b (n-2)
 x `inbase` b = reverse $ unfoldr (\x -> guard (x/=0) >> Just (x `mod` b, x `div` b)) x
 
 --prime_decomposition = map (head &&& length) . group . prime_factors
---equalBy f x y = (f x) == (f y)
+
+equalBy f x y = (f x) == (f y)
 
 
--- enumerates all pairs of integers, smallest sum first.
+-- enumerates all pairs of positive integers, smallest sum first.
 diagonals = concat [[(x, n-x) | x <- [1..n-1]] | n <- [1..]]
 
+-- enumates pairs of positive integers where the first is no larger than the
+-- second, smallest sum first.
+diagonals' = concat [[(x, n-x) | x <- [1..n `div` 2]] | n <- [1..]]
+
+pythagorean (a, b, c) = a*a + b*b == c*c
 
 triangle n = n * (n+1) `div` 2
 divisors n = [x | x <- [1..n `div` 2], x `divides` n]
@@ -127,9 +133,8 @@ euler5 = foldr1 lcm [1..20]
 euler6 = square (sum [1..100]) - sum (map square [1..100]) where square x = x*x
 euler7 = primes!!10000
 euler8 = maximum $ map (product . map (read . return) . take 5) $ tails euler8data
-euler9 = multiply . fromJust . find pythagorean . map triple $ diagonals
+euler9 = multiply . fromJust . find pythagorean . map triple $ diagonals'
   where triple (a, b) = (a, b, 1000 - (a+b))
-        pythagorean (a, b, c) = a*a + b*b == c*c
         multiply (a, b, c) = a*b*c
 euler10 = sum $ takeWhile (< 2000000) primes
 euler11 = maximum [product q | q <- qs]
@@ -262,6 +267,22 @@ euler37 = sum $ take 11 $ evalState (filterM truncatable primes') emptySieve
   lTruncs = truncs tails
   rTruncs = truncs inits
 
+euler38 = maximum . map fromDigits . concat $ [candidate n | n <- [2..5]]
+ where
+  candidate n = take 1 $ P.filter pandigital [concatProd x n | x <- dDigitNumbers $ 9 `div` n]
+  dDigitNumbers d = [10^d-1, 10^d-2 .. 10^(d-1)]
+  pandigital = (== [1..9]) . sort
+  concatProd x n = concat [digits (x*n') | n' <- [1..n]]
+
+euler39 = (fst . head . head .
+           sortBy (comparing $ negate . length) .
+           groupBy (equalBy fst) .
+           sortBy (comparing fst)
+          ) [(sum3 t, t) | t <- triples]
+ where
+  triples = P.filter pythagorean . takeWhile ((<1000) . sum3) $ map triple diagonals'
+  triple (a, b) = (a, b, isqrt (a*a + b*b))
+  sum3 (a, b, c) = a+b+c
 
 euler67_broken = do
   triText <- readFile "euler/p067_triangle.txt"
