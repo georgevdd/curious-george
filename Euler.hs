@@ -283,6 +283,26 @@ euler39 = (fst . head . head .
   triples = P.filter pythagorean . takeWhile ((<1000) . sum3) $ map triple diagonals'
   triple (a, b) = (a, b, isqrt (a*a + b*b))
   sum3 (a, b, c) = a+b+c
+euler40 = product [champernowneDigit $ 10^x-1 | x <- [0..6]]
+ where
+  -- Compute d'th digit of Champernowne's number
+  champernowneDigit d =
+    let -- Segment and index of digit within it
+        (seg, segDigit) = segRem d
+        -- Index of integer within segment and index of digit within integer
+        (n', nDigit) = quotRem segDigit (seg+1)
+        -- Actual integer
+        n = 10^seg + n'
+    in -- Actual digit within integer
+       n `div` 10^(seg-nDigit) `mod` 10
+  -- Segment n contains all the positive integers with n digits
+  -- Segment 0 is [1..9], segment 1 is [10..99], etc
+  -- [1..9] is 9 numbers, [10..99] is 90 numbers, [100..999] is 900 numbers, etc
+  segNums s = 9 * 10^s
+  -- [1..9] is 9 digits, [10..99] is 180 digits, [100..999] is 2700 digits, etc
+  segDigits s = (s+1) * segNums s
+  -- Compute segment and digit within segment.
+  segRem d = last . takeWhile ((>=0) . snd) . zip [0..] $ scanl (-) d $ map segDigits [0..]
 
 euler67_broken = do
   triText <- readFile "euler/p067_triangle.txt"
