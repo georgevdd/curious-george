@@ -2,7 +2,7 @@ module Euler where
 
 import Control.Monad.State as State
 import Data.Char (isAlpha, ord)
-import Data.List (elemIndex, find, group, inits, mapAccumL, maximumBy, minimum, 
+import Data.List (elemIndex, find, group, inits, mapAccumL, maximumBy, minimum,
                   partition, permutations, sort, tails, unfoldr)
 import Data.Maybe (fromJust, fromMaybe)
 import Data.Map as M hiding (foldl, foldr, map)
@@ -24,8 +24,16 @@ primes = 2:3:[x | x <- [5..], not $ any (`divides` x) (takeWhile (<= isqrt x) pr
 prime_factors 1 = []
 prime_factors n = let m = head [x | x <- primes, x `divides` n] in m : prime_factors (n `div` m)
 
-palindromes = [100001 * a + 10010 * b + 1100 * c | a <- ns, b <- ns, c <- ns]
-  where ns = reverse [0..9]
+-- Numbers that in base `b` are palindromic and have `n` digits (including
+-- those with leading zeros)
+palindromes b 1 = [0..b-1]
+palindromes b 2 = [(b+1) * d | d <- [0..b-1]]
+palindromes b n = let ps = palindromes b (n-2)
+                      x = b^(n-1) + 1
+                      xs = [x * d | d <- [0..b-1]]
+                  in [p*b + x | x <- xs, p <- ps]
+
+x `inbase` b = reverse $ unfoldr (\x -> guard (x/=0) >> Just (x `mod` b, x `div` b)) x
 
 --prime_decomposition = map (head &&& length) . group . prime_factors
 --equalBy f x y = (f x) == (f y)
@@ -81,7 +89,7 @@ febDays year | year `mod` 400 == 0 = 29
              | year `mod` 4 == 0 = 29
              | otherwise = 28
 
-digits = map ((read :: String -> Integer) . return) . show
+digits = map ((read :: (Integral a, Read a) => String -> a) . return) . show
 fromDigits = foldl (\n d -> 10 * n + d) 0
 
 amicable x = let y = d(x) in y /= x && d(y) == x
@@ -111,6 +119,10 @@ euler2 = sum [x | x <- takeWhile (< 4000000) fibs, 2 `divides` x]
 euler3 = maximum $ prime_factors 600851475143
 -- Brute forceful but good enough
 euler4 = maximum [x*y | x <- [999,998..900], y <- [999,998..900], (x*y) `elem` (take 100 palindromes)]
+ where
+  palindromes = [100001 * a + 10010 * b + 1100 * c | a <- ns, b <- ns, c <- ns]
+  ns = reverse [0..9]
+
 euler5 = foldr1 lcm [1..20]
 euler6 = square (sum [1..100]) - sum (map square [1..100]) where square x = x*x
 euler7 = primes!!10000
@@ -218,7 +230,7 @@ changes m p = do
   else if coin == p then [[coin]]
        else [(coin:rest) | rest <- changes coin (p-coin)]
  where
-  denoms = reverse [1, 2, 5, 10, 20, 50, 100, 200] 
+  denoms = reverse [1, 2, 5, 10, 20, 50, 100, 200]
 
 euler31 = length $ changes 200 200
 
@@ -236,6 +248,19 @@ euler32 = P.sum $ S.toList $ S.fromList pandigitals
    z <- fmap fromDigits $ permutations z_digits
    if x * y == z then [z] else []
   neither_null (a, b) = not (P.null a || P.null b)
+
+euler36 = sum $ palindromes' 10 6 `S.intersection` palindromes' 2 20
+ where
+  palindromes' b n = S.fromList [x | x <- concat [palindromes b n' | n' <- [1..n]], x `mod` b /= 0]
+
+euler37 = sum $ take 11 $ evalState (filterM truncatable primes') emptySieve
+ where
+  primes' = dropWhile ((<2) . length . digits) primes
+  truncatable n = fmap P.null $ filterM (fmap not . testPrime)
+                                        (lTruncs n ++ rTruncs n)
+  truncs subs n = [fromDigits ds | ds <- subs $ digits n, not $ P.null ds]
+  lTruncs = truncs tails
+  rTruncs = truncs inits
 
 
 euler67_broken = do
@@ -480,4 +505,3 @@ euler22data = do
   namesText <- fmap Text.pack $ readFile "euler/p022_names.txt"
   let namesQuoted = Text.split (==',') namesText
   return [unpack $ Text.filter (/='\"') n | n <- namesQuoted]
-
