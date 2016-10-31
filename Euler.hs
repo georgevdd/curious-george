@@ -197,7 +197,7 @@ testPrime x = do
  where
   fillCacheTo x (cache, ps) =
     let (more, ps') = break (>x) ps
-    in (cache `S.union` (S.fromList more), ps')
+    in (cache `S.union` (S.fromDistinctAscList more), ps')
 
 takeWhileM :: Monad m => (a -> m Bool) -> [a] -> m [a]
 takeWhileM pred (x:xs) = do
@@ -303,6 +303,20 @@ euler40 = product [champernowneDigit $ 10^x-1 | x <- [0..6]]
   segDigits s = (s+1) * segNums s
   -- Compute segment and digit within segment.
   segRem d = last . takeWhile ((>=0) . snd) . zip [0..] $ scanl (-) d $ map segDigits [0..]
+
+sieveUpTo :: Int -> IO Sieve
+sieveUpTo 0 = return emptySieve
+sieveUpTo n = do
+  s' <- sieveUpTo (n - k)
+  seq (head $ snd s') (putChar '.')
+  return $ execState (mapM testPrime [max 0 (n-k+1)..n]) s'
+ where k = 10^6
+
+euler41 = head $ evalState (filterM testPrime ps) emptySieve
+ where
+  -- Don't need to generate 8- and 9- digit numbers because they
+  -- will always be multiples of 3
+  ps = map fromDigits . reverse $ lexPerms [1..7]
 
 euler67_broken = do
   triText <- readFile "euler/p067_triangle.txt"
