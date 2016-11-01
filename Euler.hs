@@ -29,7 +29,7 @@ takeWhileM _ [] = return []
 
 -- ### Combinatorics ### --
 
-factorial n = foldr1 (*) [1..n]
+factorial n = product [1..n]
 n `ncr` r = factorial n `div` (factorial r * factorial (n - r))
 
 -- Given a sorted list, produces its permutations in lexicographical order
@@ -289,7 +289,35 @@ euler32 = P.sum $ S.toList $ S.fromList pandigitals
    if x * y == z then [z] else []
   neither_null (a, b) = not (P.null a || P.null b)
 
-euler36 = sum $ palindromes' 10 6 `S.intersection` palindromes' 2 20
+euler33 = b' `div` gcd a' b'
+ where
+  (a', b') = (product as, product bs)
+  (as, bs) = unzip curiosities
+  curiosities = [(a, b) | a <- [10..99], b <- [1..99], curious (a,b)]
+  curious (a,b) = (a `mod` 10) == (b `div` 10) &&
+                  a * (b `mod` 10) == b * (a `div` 10) &&
+                  a `mod` 11 /= 0
+
+-- 8 * factorial 9 only gives a 7-digit number so no >7-digit number is equal
+-- to the sum of the factorials of its digits
+euler34 = sum [x | x <- [3..9999999], x == sdf x]
+ where
+  sdf x = sum [fs !! d | d <- rdigits x]
+  fs = map factorial [0..9]
+  rdigits = unfoldr (\n -> if n == 0
+                           then Nothing
+                           else Just (n `mod` 10, n `div` 10))
+
+euler35 = length $ P.filter circular ps
+ where
+  ps = takeWhile (<1000000) primes
+  ps' = S.fromList ps
+  circular = all (`S.member` ps') . rotations'
+rotations' = map fromDigits . rotations . digits
+rotations xs = [rotate xs n | n <- [1..(length xs)-1]]
+rotate xs n = let (a, b) = splitAt n xs in b++a
+
+euler36 = sum . S.toList $ palindromes' 10 6 `S.intersection` palindromes' 2 20
  where
   palindromes' b n = S.fromList [x | x <- concat [palindromes b n' | n' <- [1..n]], x `mod` b /= 0]
 
