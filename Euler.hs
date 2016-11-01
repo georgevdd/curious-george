@@ -103,6 +103,7 @@ sieveUpTo n = do
 -- ### Other integer sequences ### --
 
 fibs = 1 : 1 : map (uncurry (+)) (zip fibs (tail fibs))
+triangulars = map triangle [1..]
 
 -- Numbers that in base `b` are palindromic and have `n` digits (including
 -- those with leading zeros)
@@ -217,7 +218,7 @@ euler11 = maximum [product q | q <- qs]
                ds <- [[0..3], [3,2..0]]]
         scan = map (take 4) . take 17 . tails
         rows = euler11data
-euler12 = fromJust $ find ((>500) . num_divisors) $ map triangle [1..]
+euler12 = fromJust $ find ((>500) . num_divisors) triangulars
 euler13 = take 10 $ show $ sum euler13data
 euler14 = fst . maximumBy (comparing snd) . zip [1..] . snd $ mapAccumL collatz' (M.singleton 1 1) [1..999999]
 euler15 = 40 `ncr` 20
@@ -373,6 +374,24 @@ euler41 = head $ evalState (filterM testPrime ps) emptySieve
   -- Don't need to generate 8- and 9- digit numbers because they
   -- will always be multiples of 3
   ps = map fromDigits . reverse $ lexPerms [1..7]
+
+euler42 = do
+  ws <- euler42data
+  return $ length . P.filter (triangular . wordNum) $ ws
+ where
+  letterNum = (+ (-64)) . ord
+  wordNum = sum . map letterNum
+  triangular n = (==n) . head $ dropWhile (<n) triangulars
+
+euler43 = sum [fromDigits $ reverse ds |
+               ds <- foldM addDigits [] ([1,1,1] ++ take 7 primes)]
+ where
+  addDigits ds p = [d:ds | d <- nextDigits ds p]
+  nextDigits l 1 = [d | d <- [0..9], not $ d `elem` l]
+  nextDigits l@(d1:d2:ds) p = [d | d <- [0..9],
+                               p `divides` (d2*100+d1*10+d),
+                               not $ d `elem` l]
+
 
 euler67_broken = do
   triText <- readFile "euler/p067_triangle.txt"
@@ -599,7 +618,7 @@ euler18data = [
   [75],
   [95, 64],
   [17, 47, 82],
-  [18, 35, 87, 10],
+             [18, 35, 87, 10],
   [20, 04, 82, 47, 65],
   [19, 01, 23, 75, 03, 34],
   [88, 02, 77, 73, 07, 63, 67],
@@ -616,3 +635,8 @@ euler22data = do
   namesText <- fmap Text.pack $ readFile "euler/p022_names.txt"
   let namesQuoted = Text.split (==',') namesText
   return [unpack $ Text.filter (/='\"') n | n <- namesQuoted]
+
+euler42data = do
+  wordsText <- fmap Text.pack $ readFile "euler/p042_words.txt"
+  let wordsQuoted = Text.split (==',') wordsText
+  return [unpack $ Text.filter (/='\"') n | n <- wordsQuoted]
