@@ -413,7 +413,7 @@ euler43 = sum [fromDigits $ reverse ds |
                                p `divides` (d2*100+d1*10+d),
                                not $ d `elem` l]
 
-euler45 = head $ tail $ P.filter (\n -> triangular n && pentagonal n) $ drop 142 hexagonals
+euler45 = head $ P.filter pentagonal $ drop 143 hexagonals
 
 
 euler67_broken = do
