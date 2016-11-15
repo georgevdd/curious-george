@@ -51,7 +51,7 @@ partitions [] = [([], [])]
 partitions (x:xs) = concat [[(x:ys, zs), (ys, x:zs)] | (ys, zs) <- partitions xs]
 
 
--- ### Number theory ### --
+-- ### Number theory and algebra ### --
 
 x `divides` y = y `mod` x == 0
 num_divisors = product . map ((+1) . length) . group . prime_factors
@@ -61,7 +61,27 @@ abundant n = sum (divisors n) > n
 amicable x = let y = d(x) in y /= x && d(y) == x
   where d(x) = sum $ divisors x
 
+quadratic_roots a b c = [((-b) `op` sqrt(b*b - 4.0*a*c)) / (2.0*a) |
+                         op <- [(+), (-)]]
+
+-- Is x a whole number?
+integral :: RealFrac a => a -> Bool
+integral x = x == fromIntegral (truncate x)
+
 triangle n = n * (n+1) `div` 2
+-- x = n(n+1)/2 so n = (-0.5 +- sqrt(0.25 + 2x)) by the quadratic formula
+triangular :: Integral a => a -> Bool
+triangular = integral . troot . fromIntegral
+ where
+  troot x = head $ quadratic_roots 0.5 0.5 (-x)
+
+pentagon n = n * (3*n - 1) `div` 2
+pentagonal :: Integral a => a -> Bool
+pentagonal = integral . proot . fromIntegral
+ where
+  proot x = head $ quadratic_roots 1.5 (-0.5) (-x)
+
+hexagon n  = n * (2*n - 1)
 
 pythagorean (a, b, c) = a*a + b*b == c*c
 
@@ -104,6 +124,7 @@ sieveUpTo n = do
 
 fibs = 1 : 1 : map (uncurry (+)) (zip fibs (tail fibs))
 triangulars = map triangle [1..]
+hexagonals = map hexagon [1..]
 
 -- Numbers that in base `b` are palindromic and have `n` digits (including
 -- those with leading zeros)
@@ -391,6 +412,8 @@ euler43 = sum [fromDigits $ reverse ds |
   nextDigits l@(d1:d2:ds) p = [d | d <- [0..9],
                                p `divides` (d2*100+d1*10+d),
                                not $ d `elem` l]
+
+euler45 = head $ tail $ P.filter (\n -> triangular n && pentagonal n) $ drop 142 hexagonals
 
 
 euler67_broken = do
