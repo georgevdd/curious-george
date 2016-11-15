@@ -2,9 +2,9 @@ module Euler where
 
 import Control.Monad.State as State
 import Data.Char (isAlpha, ord)
-import Data.List (elemIndex, find, group, groupBy, inits, mapAccumL, maximumBy, minimum,
+import Data.List (elemIndex, find, group, groupBy, inits, mapAccumL, maximumBy, minimum, nub,
                   partition, permutations, sort, sortBy, tails, unfoldr)
-import Data.Maybe (fromJust, fromMaybe)
+import Data.Maybe (catMaybes, fromJust, fromMaybe, listToMaybe)
 import Data.Map as M hiding (foldl, foldr, map)
 import Data.Set as S hiding (foldl, foldr, map)
 import Data.Ord (comparing)
@@ -84,6 +84,10 @@ pentagonal = integral . proot . fromIntegral
 hexagon n  = n * (2*n - 1)
 
 pythagorean (a, b, c) = a*a + b*b == c*c
+
+powmod _ a 1 = a
+powmod m a b | (b `mod` 2) == 0 = powmod m (a*a `mod` m) (b `div` 2)
+             | otherwise = a * powmod m a (b-1) `mod` m
 
 
 -- ### Prime numbers ### --
@@ -415,6 +419,33 @@ euler43 = sum [fromDigits $ reverse ds |
 
 euler45 = head $ P.filter pentagonal $ drop 143 hexagonals
 
+euler46 = head $ evalState (filterM goldbach [35,37..]) emptySieve
+ where
+  goldbach n = do
+    p <- testPrime n
+    let squares' = takeWhile (<n) squares
+    if p then return False
+    else do
+      ss <- filterM testPrime [n - 2*s | s <- squares']
+      return (P.null ss)
+  squares = [x*x | x <- [1..]]
+
+euler47 = head [n | n <- [644..], pf4 [n..n+3]]
+ where
+  pf4 ns = all (==4) [length . group $ prime_factors n | n <- ns]
+
+euler48 = sum [powmod (10^10) n n | n <- [1..1000]] `mod` 10^10
+
+euler49 = fromDigits $ concat [digits n | n <- ns]
+ where
+  ns = head [ps | ps <- catMaybes [increasing_sequence . prime_perms $ p | p <- primeList],
+             head ps /= 1487]
+  increasing_sequence ns = listToMaybe [[a,b,c] | [a,b,c] <- ns `choices` 3, c-b == b-a]
+  prime_perms n = nub $ sort [n' |
+                              n' <- [fromDigits ds | ds <- permutations $ digits n],
+                              n' `S.member` primeSet]
+  primeList = takeWhile (<10000) $ dropWhile (<1000) primes
+  primeSet = S.fromList [p | p <- primeList]
 
 euler67_broken = do
   triText <- readFile "euler/p067_triangle.txt"
