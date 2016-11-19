@@ -10,6 +10,8 @@ import Data.Set as S hiding (foldl, foldr, map)
 import Data.Ord (comparing)
 import Data.Text as Text (filter, pack, split, unpack)
 
+import Debug.Trace
+
 import Prelude as P
 
 isqrt = round . sqrt . fromIntegral
@@ -26,6 +28,8 @@ takeWhileM pred (x:xs) = do
   else return []
 takeWhileM _ [] = return []
 
+-- Test membership of a possibly-infinite ascending list
+x `elemAsc` xs = (==x) . head $ dropWhile (<x) xs
 
 -- ### Combinatorics ### --
 
@@ -62,6 +66,7 @@ amicable x = let y = d(x) in y /= x && d(y) == x
   where d(x) = sum $ divisors x
 
 triangle n = n * (n+1) `div` 2
+pentagon n = n * (3*n - 1) `div` 2
 
 pythagorean (a, b, c) = a*a + b*b == c*c
 
@@ -75,11 +80,13 @@ prime_factors 1 = []
 prime_factors n = let m = head [x | x <- primes, x `divides` n] in m : prime_factors (n `div` m)
 
 type Sieve = (S.Set Int, [Int])
-emptySieve :: Sieve
-emptySieve = (S.empty, primes)
+emptySieve' :: [Int] -> Sieve
+emptySieve' xs = (S.empty, xs)
 
-testPrime :: Int -> State Sieve Bool
-testPrime x = do
+emptySieve = emptySieve' primes
+
+testSieve :: Int -> State Sieve Bool
+testSieve x = do
   (cache, ps) <- get
   when (x >= head ps)
        (modify (fillCacheTo x))
@@ -89,6 +96,8 @@ testPrime x = do
   fillCacheTo x (cache, ps) =
     let (more, ps') = break (>x) ps
     in (cache `S.union` (S.fromDistinctAscList more), ps')
+
+testPrime = testSieve
 
 -- For making a huge prime sieve, with a crude progress counter
 sieveUpTo :: Int -> IO Sieve
@@ -392,6 +401,24 @@ euler43 = sum [fromDigits $ reverse ds |
                                p `divides` (d2*100+d1*10+d),
                                not $ d `elem` l]
 
+euler44 :: Int
+euler44 = p_k - p_j
+ where
+  (p_j, p_k) = head $ evalState (filterM match candidates)
+                                (emptySieve' pentagonals)
+  candidates = do
+    d <- pentagonals
+    p_j <- fmap pentagon $ takeWhile (candidate d) [1..]
+    let p_k = p_j + d
+    return (p_j, p_k)
+  match (p_j, p_k) = do
+    p_j_ok <- testSieve p_j
+    p_k_ok <- testSieve p_k
+    s_ok <- testSieve (p_j + p_k)
+    return (p_j_ok && p_k_ok && s_ok)
+  pentagonals = map pentagon [1..]
+  candidate d n = pentagon (n+1) - pentagon n <= d
+  pentagonal n = n `elemAsc` pentagonals
 
 euler67_broken = do
   triText <- readFile "euler/p067_triangle.txt"
