@@ -2,9 +2,9 @@ module Euler where
 
 import Control.Monad.State as State
 import Data.Char (isAlpha, ord)
-import Data.List (elemIndex, find, group, groupBy, inits, mapAccumL, maximumBy, minimum,
+import Data.List (elemIndex, find, group, groupBy, inits, mapAccumL, maximumBy, minimum, nub,
                   partition, permutations, sort, sortBy, tails, unfoldr)
-import Data.Maybe (fromJust, fromMaybe)
+import Data.Maybe (catMaybes, fromJust, fromMaybe, listToMaybe)
 import Data.Map as M hiding (foldl, foldr, map)
 import Data.Set as S hiding (foldl, foldr, map)
 import Data.Ord (comparing)
@@ -55,7 +55,7 @@ partitions [] = [([], [])]
 partitions (x:xs) = concat [[(x:ys, zs), (ys, x:zs)] | (ys, zs) <- partitions xs]
 
 
--- ### Number theory ### --
+-- ### Number theory and algebra ### --
 
 x `divides` y = y `mod` x == 0
 num_divisors = product . map ((+1) . length) . group . prime_factors
@@ -65,10 +65,33 @@ abundant n = sum (divisors n) > n
 amicable x = let y = d(x) in y /= x && d(y) == x
   where d(x) = sum $ divisors x
 
+quadratic_roots a b c = [((-b) `op` sqrt(b*b - 4.0*a*c)) / (2.0*a) |
+                         op <- [(+), (-)]]
+
+-- Is x a whole number?
+integral :: RealFrac a => a -> Bool
+integral x = x == fromIntegral (truncate x)
+
 triangle n = n * (n+1) `div` 2
+-- x = n(n+1)/2 so n = (-0.5 +- sqrt(0.25 + 2x)) by the quadratic formula
+triangular :: Integral a => a -> Bool
+triangular = integral . troot . fromIntegral
+ where
+  troot x = head $ quadratic_roots 0.5 0.5 (-x)
+
 pentagon n = n * (3*n - 1) `div` 2
+pentagonal :: Integral a => a -> Bool
+pentagonal = integral . proot . fromIntegral
+ where
+  proot x = head $ quadratic_roots 1.5 (-0.5) (-x)
+
+hexagon n  = n * (2*n - 1)
 
 pythagorean (a, b, c) = a*a + b*b == c*c
+
+powmod _ a 1 = a
+powmod m a b | (b `mod` 2) == 0 = powmod m (a*a `mod` m) (b `div` 2)
+             | otherwise = a * powmod m a (b-1) `mod` m
 
 
 -- ### Prime numbers ### --
@@ -113,6 +136,7 @@ sieveUpTo n = do
 
 fibs = 1 : 1 : map (uncurry (+)) (zip fibs (tail fibs))
 triangulars = map triangle [1..]
+hexagonals = map hexagon [1..]
 
 -- Numbers that in base `b` are palindromic and have `n` digits (including
 -- those with leading zeros)
@@ -419,6 +443,35 @@ euler44 = p_k - p_j
   pentagonals = map pentagon [1..]
   candidate d n = pentagon (n+1) - pentagon n <= d
   pentagonal n = n `elemAsc` pentagonals
+
+euler45 = head $ P.filter pentagonal $ drop 143 hexagonals
+
+euler46 = head $ evalState (filterM goldbach [35,37..]) emptySieve
+  goldbach n = do
+    p <- testPrime n
+    let squares' = takeWhile (<n) squares
+    if p then return False
+    else do
+      ss <- filterM testPrime [n - 2*s | s <- squares']
+      return (P.null ss)
+  squares = [x*x | x <- [1..]]
+
+euler47 = head [n | n <- [644..], pf4 [n..n+3]]
+ where
+  pf4 ns = all (==4) [length . group $ prime_factors n | n <- ns]
+
+euler48 = sum [powmod (10^10) n n | n <- [1..1000]] `mod` 10^10
+
+euler49 = fromDigits $ concat [digits n | n <- ns]
+ where
+  ns = head [ps | ps <- catMaybes [increasing_sequence . prime_perms $ p | p <- primeList],
+             head ps /= 1487]
+  increasing_sequence ns = listToMaybe [[a,b,c] | [a,b,c] <- ns `choices` 3, c-b == b-a]
+  prime_perms n = nub $ sort [n' |
+                              n' <- [fromDigits ds | ds <- permutations $ digits n],
+                              n' `S.member` primeSet]
+  primeList = takeWhile (<10000) $ dropWhile (<1000) primes
+  primeSet = S.fromList [p | p <- primeList]
 
 euler67_broken = do
   triText <- readFile "euler/p067_triangle.txt"
