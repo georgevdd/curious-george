@@ -471,7 +471,19 @@ euler49 = fromDigits $ concat [digits n | n <- ns]
                               n' <- [fromDigits ds | ds <- permutations $ digits n],
                               n' `S.member` primeSet]
   primeList = takeWhile (<10000) $ dropWhile (<1000) primes
-  primeSet = S.fromList [p | p <- primeList]
+  primeSet = S.fromList primeList
+
+euler50 = snd $ maximumBy (comparing fst) [maxSumFrom ps | ps <- tails primesToAdd]
+ where
+  maxSum = 1000000
+  minLength = 21 + 1 -- Since we are already given that a series of length 21 sums to 953
+  maxFirstPrimeToAdd = maxSum `div` minLength
+  primesToAdd = [p | (p, _) <- takeWhile ((<maxFirstPrimeToAdd) . snd)
+                                         (zip primes $ replicate minLength 0 ++ primes)]
+  maxSumFrom = maximumBy (comparing fst) . ((0,0):) . primeSumsFrom
+  primeSumsFrom = P.filter ((`S.member` primeSet) . snd) . sumsFrom
+  sumsFrom = takeWhile ((<maxSum) . snd) . drop minLength . zip [0..] . scanl (+) 0
+  primeSet = S.fromList $ takeWhile (<maxSum) primes
 
 euler67_broken = do
   triText <- readFile "euler/p067_triangle.txt"
