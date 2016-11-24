@@ -447,6 +447,7 @@ euler44 = p_k - p_j
 euler45 = head $ P.filter pentagonal $ drop 143 hexagonals
 
 euler46 = head $ evalState (filterM goldbach [35,37..]) emptySieve
+ where
   goldbach n = do
     p <- testPrime n
     let squares' = takeWhile (<n) squares
@@ -484,6 +485,31 @@ euler50 = snd $ maximumBy (comparing fst) [maxSumFrom ps | ps <- tails primesToA
   primeSumsFrom = P.filter ((`S.member` primeSet) . snd) . sumsFrom
   sumsFrom = takeWhile ((<maxSum) . snd) . drop minLength . zip [0..] . scanl (+) 0
   primeSet = S.fromList $ takeWhile (<maxSum) primes
+
+euler51 = evalState eightPrimeFamily emptySieve
+ where
+  munges :: [Int] -> Int -> [[[Int]]]
+  munges ds 0 = [replicate 10 ds]
+  munges [] _ = []
+  munges (d:ds) n = [[d:ds'' | ds'' <- ds'] | ds' <- munges ds n] ++
+                    [[d':ds'' | (d', ds'') <- zip [0..9] ds'] | ds' <- munges ds (n-1)]
+
+  primeFamily :: [Int] -> Int -> State Sieve [Int]
+  primeFamily ds r = do
+    let ms = [[fromDigits ds | ds <- ds', head ds /= 0] | ds' <- munges ds r]
+    ps <- sequence [filterM testPrime ms' | ms' <- ms]
+    return $ maximumBy (comparing length) ps
+
+  maxPrimeFamily :: Int -> State Sieve [Int]
+  maxPrimeFamily n = do
+    let ds = digits n
+    families <- sequence [primeFamily ds r | r <- [1..length ds - 1]]
+    return $ maximumBy (comparing length) ([]:families)
+
+  eightPrimeFamily = do
+    families <- mapM maxPrimeFamily primes
+    return $ head [head f | f <- families, length f == 8]
+
 
 euler67_broken = do
   triText <- readFile "euler/p067_triangle.txt"
