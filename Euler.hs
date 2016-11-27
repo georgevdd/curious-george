@@ -510,6 +510,11 @@ euler51 = evalState eightPrimeFamily emptySieve
     families <- mapM maxPrimeFamily primes
     return $ head [head f | f <- families, length f == 8]
 
+euler52 = head $ P.filter permMult [1..]
+ where
+  permMult n = all (\n' -> sd n' == sd n) [m*n | m <- [2..6]]
+  sd = sort . digits
+
 
 euler67_broken = do
   triText <- readFile "euler/p067_triangle.txt"
