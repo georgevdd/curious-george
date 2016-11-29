@@ -148,6 +148,9 @@ palindromes b n = let ps = palindromes b (n-2)
                       xs = [x * d | d <- [0..b-1]]
                   in [p*b + x | x <- xs, p <- ps]
 
+-- Test for palindrome-ness in base 10
+palindromic n = n == (fromDigits . reverse . digits) n
+
 
 --prime_decomposition = map (head &&& length) . group . prime_factors
 
@@ -176,6 +179,10 @@ collatz' m n = case M.lookup n m of
                          (m', k') = collatz' m n'
                      in (M.insert n (k'+1) m', k'+1)
 
+
+-- ### Number triangles (e.g. Problem 18) ### --
+
+triMax :: [[Int]] -> Int
 triMax = head . foldr1 step
   where step line1 line2 = [max x y | (x, y) <- zip [a + b  | (a, b ) <- zip line1 line2       ]
                                                     [a + b' | (a, b') <- zip line1 (tail line2)]]
