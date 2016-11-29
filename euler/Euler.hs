@@ -517,7 +517,7 @@ euler52 = head $ P.filter permMult [1..]
 
 
 euler67_broken = do
-  triText <- readFile "euler/p067_triangle.txt"
+  triText <- readFile "data/p067_triangle.txt"
   let tri = [[(read n) :: Integer | n <- words l] | l <- lines triText]
   return $ triMax tri
 
@@ -755,11 +755,11 @@ euler18data = [
   [04, 62, 98, 27, 23, 09, 70, 98, 73, 93, 38, 53, 60, 04, 23]]
 
 euler22data = do
-  namesText <- fmap Text.pack $ readFile "euler/p022_names.txt"
+  namesText <- fmap Text.pack $ readFile "data/p022_names.txt"
   let namesQuoted = Text.split (==',') namesText
   return [unpack $ Text.filter (/='\"') n | n <- namesQuoted]
 
 euler42data = do
-  wordsText <- fmap Text.pack $ readFile "euler/p042_words.txt"
+  wordsText <- fmap Text.pack $ readFile "data/p042_words.txt"
   let wordsQuoted = Text.split (==',') wordsText
   return [unpack $ Text.filter (/='\"') n | n <- wordsQuoted]
