@@ -14,7 +14,17 @@ import Debug.Trace
 
 import Prelude as P
 
+import Cards as Cards
 import Lib
+
+euler53 = length $ P.filter (> 1000000) [n `ncr` r | n <- [1..100], r <- [1..n]]
+
+euler54 = do
+  handData <- readFile "data/p054_poker.txt"
+  let cards = [splitAt 5 [read h | h <- words l] | l <- lines handData]
+  return $ length (P.filter player1Wins cards)
+ where
+  player1Wins (h1, h2) = pokerScore h1 > pokerScore h2
 
 euler55 = length $ P.filter lychrel [1..10000-1]
  where
