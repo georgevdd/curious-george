@@ -40,3 +40,11 @@ euler57 = length $ P.filter longerNumerator expansions
   longerNumerator (a :% b) = length (digits a) > length (digits b)
   expansions = take 1000 [1 + 1 / r | r <- iterate expand (2 :: Ratio Integer)]
   expand x = 2 + 1 / x
+
+euler58 = side
+ where
+  numbersOnSide s = [s*s - k*(s-1) | k <- [3,2,1]]  -- Ignore s*s because squares are always composite.
+  accumulate (p, d, s) p' = (p+p', d+4, s+2)
+  search = scanl accumulate (0, 1, 1) [count isPrime $ numbersOnSide r | r <- [3,5..]]
+  ratios = [((fromIntegral p) / (fromIntegral d), s) | (p, d, s) <- search]
+  Just (ratio, side) = find (\(r, s) -> r < 0.1) $ tail ratios

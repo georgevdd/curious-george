@@ -19,6 +19,8 @@ isqrt = round . sqrt . fromIntegral
 (.:) = (.) . (.)
 equalBy f x y = (f x) == (f y)
 
+count = length .: P.filter
+
 takeWhileM :: Monad m => (a -> m Bool) -> [a] -> m [a]
 takeWhileM pred (x:xs) = do
   p <- pred x
@@ -97,7 +99,8 @@ powmod m a b | (b `mod` 2) == 0 = powmod m (a*a `mod` m) (b `div` 2)
 -- ### Prime numbers ### --
 
 -- O(Nsqrt(N))
-primes = 2:3:[x | x <- [5..], not $ any (`divides` x) (takeWhile (<= isqrt x) primes)]
+primes = 2:3:[x | x <- [5..], isPrime x]
+isPrime x = not $ any (`divides` x) (takeWhile (<= isqrt x) primes)
 
 prime_factors 1 = []
 prime_factors n = let m = head [x | x <- primes, x `divides` n] in m : prime_factors (n `div` m)
