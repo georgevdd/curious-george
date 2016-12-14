@@ -310,7 +310,7 @@ euler52 = head $ P.filter permMult [1..]
 
 euler67_broken = do
   triText <- readFile "data/p067_triangle.txt"
-  let tri = [[(read n) :: Integer | n <- words l] | l <- lines triText]
+  let tri = [[(read n) :: Int | n <- words l] | l <- lines triText]
   return $ triMax tri
 
 

@@ -4,11 +4,13 @@ import Control.Monad.State as State
 import Data.Char (isAlpha, ord)
 import Data.List (elemIndex, find, group, groupBy, inits, mapAccumL, maximumBy, minimum, nub,
                   partition, permutations, sort, sortBy, tails, unfoldr)
+import Data.List as L (findIndex)
 import Data.Maybe (catMaybes, fromJust, fromMaybe, listToMaybe)
 import Data.Map as M hiding (foldl, foldr, map)
 import Data.Set as S hiding (foldl, foldr, map)
 import Data.Ord (comparing)
 import Data.Text as Text (filter, pack, split, unpack)
+import GHC.Real
 
 import Debug.Trace
 
@@ -30,3 +32,11 @@ euler55 = length $ P.filter lychrel [1..10000-1]
  where
   lychrel n = not $ any palindromic $ take 50 $ iterate addRev (addRev n)
   addRev n = n + (fromDigits . reverse . digits) n
+
+euler56 = maximum [(sum . digits) (a^b) | a <- [1..99], b <- [1..99]]
+
+euler57 = length $ P.filter longerNumerator expansions
+ where
+  longerNumerator (a :% b) = length (digits a) > length (digits b)
+  expansions = take 1000 [1 + 1 / r | r <- iterate expand (2 :: Ratio Integer)]
+  expand x = 2 + 1 / x
