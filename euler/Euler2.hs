@@ -52,18 +52,19 @@ euler58 = side
 euler59 = do
   cipherText <- euler59data
   let key = guessKey cipherText
+      plainText = decrypt key cipherText
   print [chr k | k <- key]
-  print $ decrypt key cipherText
-  return $ sum key
+  print [chr c | c <- plainText]
+  return $ sum plainText
  where
   keyLength = 3
   ctByKeyChar = transpose . chunks keyLength
-  decrypt' keyChar ct = [chr (c `xor` keyChar) | c <- ct]
+  decrypt' keyChar ct = [c `xor` keyChar | c <- ct]
   decrypt key ct = concat $ transpose [
      decrypt' keyChar ctForChar
      | (keyChar, ctForChar) <- zip key (ctByKeyChar ct)]
   scoreKeyChar ctForChar keyChar =
-    sum [fromMaybe 10000 $ elemIndex c plainTextChars | c <- "eta"]
+    sum [fromMaybe 10000 $ elemIndex (ord c) plainTextChars | c <- "eta"]
    where plainTextChars = decrypt' keyChar $ sortByFrequency ctForChar
   guessKeyChar ctForChar = minimumBy (comparing $ scoreKeyChar ctForChar)
                                      [(ord 'a') .. (ord 'z')]
