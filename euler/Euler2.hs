@@ -1,14 +1,14 @@
 module Euler2 where
 
 import Control.Monad.State as State
-import Data.Char (isAlpha, ord)
-import Data.List (elemIndex, find, group, groupBy, inits, mapAccumL, maximumBy, minimum, nub,
-                  partition, permutations, sort, sortBy, tails, unfoldr)
-import Data.List as L (findIndex)
+import Data.Bits (xor)
+import Data.Char (isAlpha, chr, ord)
+import Data.List (elemIndex, find, group, groupBy, inits, mapAccumL, maximumBy, minimumBy, minimum, nub,
+                  partition, permutations, sort, sortBy, tails, transpose, unfoldr)
 import Data.Maybe (catMaybes, fromJust, fromMaybe, listToMaybe)
 import Data.Map as M hiding (foldl, foldr, map)
 import Data.Set as S hiding (foldl, foldr, map)
-import Data.Ord (comparing)
+import Data.Ord (comparing, Down(..))
 import Data.Text as Text (filter, pack, split, unpack)
 import GHC.Real
 
@@ -48,3 +48,29 @@ euler58 = side
   search = scanl accumulate (0, 1, 1) [count isPrime $ numbersOnSide r | r <- [3,5..]]
   ratios = [((fromIntegral p) / (fromIntegral d), s) | (p, d, s) <- search]
   Just (ratio, side) = find (\(r, s) -> r < 0.1) $ tail ratios
+
+euler59 = do
+  cipherText <- euler59data
+  let key = guessKey cipherText
+  print [chr k | k <- key]
+  print $ decrypt key cipherText
+  return $ sum key
+ where
+  keyLength = 3
+  ctByKeyChar = transpose . chunks keyLength
+  decrypt' keyChar ct = [chr (c `xor` keyChar) | c <- ct]
+  decrypt key ct = concat $ transpose [
+     decrypt' keyChar ctForChar
+     | (keyChar, ctForChar) <- zip key (ctByKeyChar ct)]
+  scoreKeyChar ctForChar keyChar =
+    sum [fromMaybe 10000 $ elemIndex c plainTextChars | c <- "eta"]
+   where plainTextChars = decrypt' keyChar $ sortByFrequency ctForChar
+  guessKeyChar ctForChar = minimumBy (comparing $ scoreKeyChar ctForChar)
+                                     [(ord 'a') .. (ord 'z')]
+  guessKey ct = [guessKeyChar $ ctForChar | ctForChar <- ctByKeyChar ct]
+  sortByFrequency xs = [head l | l <- sortBy (comparing $ Down . length)
+                                             [l | l <- group $ sort xs]]
+
+euler59data = do
+  ordsText <- fmap Text.pack $ readFile "data/p059_cipher.txt"
+  return ([read $ unpack s | s <- Text.split (==',') ordsText] :: [Int])

@@ -21,6 +21,11 @@ equalBy f x y = (f x) == (f y)
 
 count = length .: P.filter
 
+chunks = unfoldr . nextChunk
+ where
+  nextChunk _ [] = Nothing
+  nextChunk n l = (Just .: splitAt) n l
+
 takeWhileM :: Monad m => (a -> m Bool) -> [a] -> m [a]
 takeWhileM pred (x:xs) = do
   p <- pred x
