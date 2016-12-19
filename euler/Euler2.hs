@@ -72,6 +72,27 @@ euler59 = do
   sortByFrequency xs = [head l | l <- sortBy (comparing $ Down . length)
                                              [l | l <- group $ sort xs]]
 
+type PrimeSet = [Int]
+
+newSets :: Int -> State ([[PrimeSet]], Sieve) PrimeSet
+newSets p = do
+  (pss, sieve) <- get
+  let (pss', sieve') = runState (mapM (fmap (map (p:)) . filterM (compatible p)) pss) sieve
+      pss'' = combine pss pss' p
+  put (pss'', sieve')
+  return $ head $ head pss''
+
+combine :: [[PrimeSet]] -> [[PrimeSet]] -> Int -> [[PrimeSet]]
+combine pss pss' p = dropWhile P.null $ map (uncurry (++)) $ zip ([]:pss) (pss' ++ [[[p]]])
+
+
+compatible :: Int -> [Int] -> State Sieve Bool
+compatible p ps = fmap (all (== True)) $ mapM (concatenable p) ps
+concatenable p p' = liftM2 (&&) (concatPrime p p') (concatPrime p' p)
+concatPrime p p' = testPrime $ fromDigits (digits p ++ digits p')
+
+maxSets = evalState (mapM newSets primes) ([], emptySieve)
+
 euler59data = do
   ordsText <- fmap Text.pack $ readFile "data/p059_cipher.txt"
   return ([read $ unpack s | s <- Text.split (==',') ordsText] :: [Int])
