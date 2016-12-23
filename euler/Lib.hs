@@ -116,6 +116,9 @@ emptySieve' xs = (S.empty, xs)
 
 emptySieve = emptySieve' primes
 
+prepareSieveUpTo :: Int -> Sieve
+prepareSieveUpTo n = execState (takeWhileM (fmap not . testPrime) [n..]) emptySieve
+
 testSieve :: Int -> State Sieve Bool
 testSieve x = do
   (cache, ps) <- get

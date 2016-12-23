@@ -3,7 +3,7 @@ module Euler2 where
 import Control.Monad.State as State
 import Data.Bits (xor)
 import Data.Char (isAlpha, chr, ord)
-import Data.List (elemIndex, find, group, groupBy, inits, mapAccumL, maximumBy, minimumBy, minimum, nub,
+import Data.List (and, elemIndex, find, group, groupBy, inits, mapAccumL, maximumBy, minimumBy, minimum, nub,
                   partition, permutations, sort, sortBy, tails, transpose, unfoldr)
 import Data.Maybe (catMaybes, fromJust, fromMaybe, listToMaybe)
 import Data.Map as M hiding (foldl, foldr, map)
@@ -72,26 +72,19 @@ euler59 = do
   sortByFrequency xs = [head l | l <- sortBy (comparing $ Down . length)
                                              [l | l <- group $ sort xs]]
 
-type PrimeSet = [Int]
+euler60sieve = prepareSieveUpTo 100000000
+euler60 = sum $ head $ findSets 5 [] (take 10000 Lib.primes)
+ where
+  testPrime' p = p `S.member` (fst euler60sieve)
+  mkPrime p = (p, 10 ^ (ceiling $ logBase 10 (fromIntegral p)))
+  compatible p ps = and $ map (concatenable p) ps
+  concatenable (p, t) (p', t') = (testPrime' $ p  + t  * p') &&
+                                 (testPrime' $ p' + t' * p)
 
-newSets :: Int -> State ([[PrimeSet]], Sieve) PrimeSet
-newSets p = do
-  (pss, sieve) <- get
-  let (pss', sieve') = runState (mapM (fmap (map (p:)) . filterM (compatible p)) pss) sieve
-      pss'' = combine pss pss' p
-  put (pss'', sieve')
-  return $ head $ head pss''
-
-combine :: [[PrimeSet]] -> [[PrimeSet]] -> Int -> [[PrimeSet]]
-combine pss pss' p = dropWhile P.null $ map (uncurry (++)) $ zip ([]:pss) (pss' ++ [[[p]]])
-
-
-compatible :: Int -> [Int] -> State Sieve Bool
-compatible p ps = fmap (all (== True)) $ mapM (concatenable p) ps
-concatenable p p' = liftM2 (&&) (concatPrime p p') (concatPrime p' p)
-concatPrime p p' = testPrime $ fromDigits (digits p ++ digits p')
-
-maxSets = evalState (mapM newSets primes) ([], emptySieve)
+  findSets 0 ps _ = [[p | (p, _) <- ps]]
+  findSets n ps rest = concat [findSets (n-1) (mkPrime p:ps) rest' |
+                               (p:rest') <- tails rest,
+                               compatible (mkPrime p) ps]
 
 euler59data = do
   ordsText <- fmap Text.pack $ readFile "data/p059_cipher.txt"
