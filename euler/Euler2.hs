@@ -23,14 +23,14 @@ euler53 = length $ P.filter (> 1000000) [n `ncr` r | n <- [1..100], r <- [1..n]]
 
 euler54 = do
   handData <- readFile "data/p054_poker.txt"
-  let cards = [splitAt 5 [read h | h <- words l] | l <- lines handData]
+  let cards = [P.splitAt 5 [read h | h <- words l] | l <- lines handData]
   return $ length (P.filter player1Wins cards)
  where
   player1Wins (h1, h2) = pokerScore h1 > pokerScore h2
 
 euler55 = length $ P.filter lychrel [1..10000-1]
  where
-  lychrel n = not $ any palindromic $ take 50 $ iterate addRev (addRev n)
+  lychrel n = not $ any palindromic $ P.take 50 $ iterate addRev (addRev n)
   addRev n = n + (fromDigits . reverse . digits) n
 
 euler56 = maximum [(sum . digits) (a^b) | a <- [1..99], b <- [1..99]]
@@ -38,7 +38,7 @@ euler56 = maximum [(sum . digits) (a^b) | a <- [1..99], b <- [1..99]]
 euler57 = length $ P.filter longerNumerator expansions
  where
   longerNumerator (a :% b) = length (digits a) > length (digits b)
-  expansions = take 1000 [1 + 1 / r | r <- iterate expand (2 :: Ratio Integer)]
+  expansions = P.take 1000 [1 + 1 / r | r <- iterate expand (2 :: Ratio Integer)]
   expand x = 2 + 1 / x
 
 euler58 = side
@@ -73,7 +73,7 @@ euler59 = do
                                              [l | l <- group $ sort xs]]
 
 euler60sieve = prepareSieveUpTo 100000000
-euler60 = sum $ head $ findSets 5 [] (take 10000 Lib.primes)
+euler60 = sum $ head $ findSets 5 [] (P.take 10000 Lib.primes)
  where
   testPrime' p = p `S.member` (fst euler60sieve)
   mkPrime p = (p, 10 ^ (ceiling $ logBase 10 (fromIntegral p)))
