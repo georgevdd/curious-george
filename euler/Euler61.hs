@@ -19,12 +19,12 @@ ranges = map range $ reverse figurates
 -- cd: first element of each result must begin with this
 -- ab: last element of each result must end with this
 search :: [[Integer]] -> Integer -> Integer -> [[Integer]]
-search (ns:nss) cd ab = do
+search [] cd ab = if cd == ab then [[]] else []
+search nss cd ab = do
+  (ns:nss') <- permutations nss
   n <- P.filter (\n -> n `div` 100 == cd) ns
-  nss' <- permutations nss
   rest <- search nss' (n `mod` 100) ab
   return $ n:rest
-search [] cd ab = if cd == ab then [[]] else []
 
 search2 :: [[Integer]] -> Integer -> [[Integer]]
 search2 nss n =
@@ -32,10 +32,7 @@ search2 nss n =
   in [n:rest | rest <- search nss cd ab]
 
 search3 :: [[Integer]] -> [[Integer]]
-search3 nss = do
-  nss' <- permutations nss
-  n <- head nss'
-  search2 (tail nss') n
+search3 nss = head $ filter (not . null) [search2 (tail nss) n | n <- head nss]
 
 euler61 =
   let solution = head $ search3 ranges
