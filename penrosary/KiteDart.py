@@ -11,7 +11,7 @@ def tr(a): return t(cos(a), sin(a))
 def c(*ts):
   x = Matrix()
   for t in ts:
-    x = t * x
+    x = t @ x
   return x
 
 KITE = 'Kite'
@@ -47,7 +47,7 @@ def deflate1(tile):
           (KITE, c(r(pi), t(1, 0))),
       ]
   }
-  return [(t, xform * x) for (t, x) in tiles[type]]
+  return [(t, xform @ x) for (t, x) in tiles[type]]
 
 def deflate(tiles):
   return sum([deflate1(tile) for tile in tiles],[])
