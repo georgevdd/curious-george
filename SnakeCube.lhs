@@ -1,3 +1,5 @@
+> import Data.Bits (setBit, testBit)
+
 > data Axis = X | Y | Z deriving (Eq, Show)
 > data Sign = Positive | Negative deriving (Eq, Show)
 > data Direction = Direction Axis Sign
@@ -28,18 +30,19 @@
 > outOfBounds :: Position -> Bool
 > outOfBounds (x, y, z) = or [i < 0 || i > 2 | i <- [x, y, z]]
 
-> newtype Cube = Cube [[[Char]]]
-> emptyCube = Cube $ (replicate 3 . replicate 3 . replicate 3) ' '
-
 > type Snake = String
 > snake :: Snake
 > snake = "bwb/w/b/wb/w/bw/b/w/bw/bw/b/w/b/wb/wb/wb/wb"
 
+> type Cube = Int
+> emptyCube = 0
+
+> bitIndex :: Position -> Int
+> bitIndex (x, y, z) = x*9 + y*3 + z
 > fill :: Cube -> Position -> Cube
-> fill (Cube c) (x, y, z) = Cube (update c z $ update (c!!z) y $ update (c!!z!!y) x 'x')
->   where update xs i x = take i xs ++ [x] ++ drop (i+1) xs
+> fill cube pos = setBit cube (bitIndex pos)
 > isFilledAt :: Cube -> Position -> Bool
-> isFilledAt (Cube c) (x, y, z) = c!!z!!y!!x /= ' '
+> isFilledAt cube pos = testBit cube (bitIndex pos)
 
 > type PartialSolution = [Direction]
 > type Solution = PartialSolution
