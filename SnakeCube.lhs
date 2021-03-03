@@ -28,36 +28,41 @@
 > outOfBounds :: Position -> Bool
 > outOfBounds (x, y, z) = or [i < 0 || i > 2 | i <- [x, y, z]]
 
-> newtype Form = Form [[[Char]]]
-> emptyForm = Form $ (replicate 3 . replicate 3 . replicate 3) ' '
+> newtype Cube = Cube [[[Char]]]
+> emptyCube = Cube $ (replicate 3 . replicate 3 . replicate 3) ' '
 
 > type Snake = String
 > snake :: Snake
 > snake = "bwb/w/b/wb/w/bw/b/w/bw/bw/b/w/b/wb/wb/wb/wb"
 
-> fill :: Form -> Position -> Form
-> fill (Form f) (x, y, z) = Form (update f z $ update (f!!z) y $ update (f!!z!!y) x 'x')
+> fill :: Cube -> Position -> Cube
+> fill (Cube c) (x, y, z) = Cube (update c z $ update (c!!z) y $ update (c!!z!!y) x 'x')
 >   where update xs i x = take i xs ++ [x] ++ drop (i+1) xs
-> filled :: Form -> Position -> Bool
-> filled (Form f) (x, y, z) = f!!z!!y!!x /= ' '
+> isFilledAt :: Cube -> Position -> Bool
+> isFilledAt (Cube c) (x, y, z) = c!!z!!y!!x /= ' '
 
 > type PartialSolution = [Direction]
 > type Solution = PartialSolution
 
-> solutions' :: Form
+> solutions' :: Cube
 >           -> Position
 >           -> Direction
 >           -> Snake
 >           -> PartialSolution
 >           -> [Solution]
 > solutions' _ _ dir [] soFar = [dir:soFar]
-> solutions' f prevPos dir ('/':snake') soFar =
->   concat [solutions' f prevPos dir' snake' (dir:soFar) | dir' <- nextDirections dir]
-> solutions' f prevPos dir (c:snake') soFar =
+> solutions' cube prevPos dir ('/':snake') soFar =
+>   concat [solutions' cube prevPos dir' snake' (dir:soFar) |
+>           dir' <- nextDirections dir]
+> solutions' cube prevPos dir (c:snake') soFar =
 >   let pos = nextPosition prevPos dir in
->   if outOfBounds pos || filled f pos then []
->   else solutions' (fill f pos) pos dir snake' soFar
+>   if outOfBounds pos || cube `isFilledAt` pos then []
+>   else solutions' (fill cube pos) pos dir snake' soFar
 
-> solutions snake = map reverse $ solutions' emptyForm (-1, 0, 0) (Direction X Positive) snake []
+> solutions snake = map reverse $ solutions' emptyCube
+>                                            (-1, 0, 0)
+>                                            (Direction X Positive)
+>                                            snake
+>                                            []
 
 > main = mapM_ print $ map (unwords . map show) $ solutions snake
