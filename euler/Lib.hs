@@ -1,6 +1,7 @@
 module Lib where
 
-import Control.Monad.State as State
+import Control.Monad (guard, when)
+import State
 import Data.Char (isAlpha, ord)
 import Data.List (elemIndex, find, group, groupBy, inits, mapAccumL, maximumBy, minimum, nub,
                   partition, permutations, sort, sortBy, tails, unfoldr)
