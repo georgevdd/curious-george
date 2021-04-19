@@ -20,6 +20,7 @@ ESP8266WiFiMulti wifiMulti;
 ESP8266WebServer server(80);
 
 void handleRoot();
+void handleStats();
 void handleNotFound();
 
 void connectToWiFi() {
@@ -46,8 +47,9 @@ void startMdns() {
 }
 
 void startWebServer() {
-  server.on("/", handleRoot);               // Call the 'handleRoot' function when a client requests URI "/"
-  server.onNotFound(handleNotFound);        // When a client requests an unknown URI (i.e. something other than "/"), call function "handleNotFound"
+  server.on("/", handleRoot);
+  server.on("/stats", handleStats);
+  server.onNotFound(handleNotFound);
 
   server.begin();                           // Actually start the server
   Serial.println("HTTP server started");
@@ -91,16 +93,21 @@ void progress() {
 
 void loop(void){
   progress();
-  server.handleClient();                    // Listen for HTTP requests from clients
+  server.handleClient();
 }
+
+void handleStats() {
+  std::ostringstream o;
+  o << "floor(log2(micros)) count" << std::endl;
+  showTimings(o);
+  server.send(200, "text/plain", o.str().c_str());}
 
 void handleRoot() {
   std::ostringstream o;
   o << "Hello world!" << std::endl;
-  showTimings(o);
-  server.send(200, "text/plain", o.str().c_str());   // Send HTTP status 200 (Ok) and send some text to the browser/client
+  server.send(200, "text/plain", o.str().c_str());
 }
 
 void handleNotFound(){
-  server.send(404, "text/plain", "404: Not found"); // Send HTTP status 404 (Not Found) when there's no handler for the URI in the request
+  server.send(404, "text/plain", "404: Not found");
 }
