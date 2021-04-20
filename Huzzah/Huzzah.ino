@@ -5,9 +5,12 @@
 
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
+#include <ESP8266HTTPClient.h>
 #include <ESP8266WiFiMulti.h>
 #include <ESP8266mDNS.h>
 #include <ESP8266WebServer.h>
+
+#include <LittleFS.h>
 
 #include "WifiCredentials.h"
 #if !defined(WIFI_SSID) || !defined(WIFI_PASSWORD)
@@ -20,6 +23,8 @@ ESP8266WiFiMulti wifiMulti;
 ESP8266WebServer server(80);
 
 void handleRoot();
+void handleFileGet();
+void handleFilePost();
 void handleStats();
 void handleNotFound();
 
@@ -33,9 +38,9 @@ void connectToWiFi() {
   }
   Serial.println('\n');
   Serial.print("Connected to ");
-  Serial.println(WiFi.SSID());              // Tell us what network we're connected to
+  Serial.println(WiFi.SSID());
   Serial.print("IP address:\t");
-  Serial.println(WiFi.localIP());           // Send the IP address of the ESP8266 to the computer
+  Serial.println(WiFi.localIP());
 }
 
 void startMdns() {
@@ -48,10 +53,15 @@ void startMdns() {
 
 void startWebServer() {
   server.on("/", handleRoot);
+  server.on("/file", HTTPMethod::HTTP_GET, handleFileGet);
+  server.on("/file",
+      HTTPMethod::HTTP_POST,
+      [](){ Serial.println("WTAF?!"); server.send(HTTP_CODE_OK); },
+      handleFilePost);
   server.on("/stats", handleStats);
   server.onNotFound(handleNotFound);
 
-  server.begin();                           // Actually start the server
+  server.begin();
   Serial.println("HTTP server started");
 }
 
@@ -62,6 +72,7 @@ void setup(void){
 
   pinMode(0, OUTPUT);
 
+  LittleFS.begin();
   connectToWiFi();
   startMdns();
   startWebServer();
@@ -94,6 +105,68 @@ void progress() {
 void loop(void){
   progress();
   server.handleClient();
+}
+
+void handleFileGet() {
+  Serial.println("Sending file ...");
+  auto file = LittleFS.open("/file", "r");
+  if (!file) {
+    Serial.println("Unable to open file.");
+    server.send(HTTP_CODE_NOT_FOUND, "text/plain", "Couldn't find that.");
+  } else {
+    auto bytesSent = server.streamFile(file, "text/plain");
+    file.close();
+    Serial.print("Sent "); Serial.print(bytesSent); Serial.print(" bytes.");
+  }
+}
+
+void handleFilePost() {
+  Serial.println("handleFilePost1!!");
+
+  static File currentFile;
+
+  const auto& upload = server.upload();
+
+  switch (upload.status) {
+  case UPLOAD_FILE_START: {
+    Serial.println("Receiving file ...");
+    delay(200);
+    currentFile = LittleFS.open("/file", "w");
+    if (!currentFile) {
+      server.send(
+          HTTP_CODE_INTERNAL_SERVER_ERROR,
+          "text/plain",
+          "Unable to open file.");
+    }
+    break;
+  }
+  case UPLOAD_FILE_WRITE: {
+    Serial.println("Still receiving file ...");
+    auto bytesWritten = currentFile.write(upload.buf, upload.currentSize);
+    if (bytesWritten != upload.contentLength) {
+      server.send(
+          HTTP_CODE_INSUFFICIENT_STORAGE,
+          "text/plain",
+          "Unable to write all the data.");
+    }
+    break;
+  }
+  case UPLOAD_FILE_END: {
+    Serial.println("Done receiving file.");
+    currentFile.close();
+    server.send(HTTP_CODE_OK, "text/plain", "All done.");
+    break;
+  }
+  case UPLOAD_FILE_ABORTED: {
+    Serial.println("Aborted receiving file.");
+    server.send(HTTP_CODE_OK, "text/plain", "Aborted.");
+    break;
+  }
+  default: {
+    Serial.print("WTF?! Code "); Serial.println(upload.status);
+  }
+  }
+
 }
 
 void handleStats() {
