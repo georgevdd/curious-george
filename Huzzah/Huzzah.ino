@@ -71,6 +71,7 @@ void setup(void){
   Serial.println('\n');
 
   pinMode(0, OUTPUT);
+  pinMode(13, OUTPUT);
 
   LittleFS.begin();
   connectToWiFi();
@@ -89,10 +90,6 @@ void showTimings(std::ostream& o) {
 }
 
 void progress() {
-  static int state = LOW;
-  state = (state == LOW) ? HIGH : LOW;
-  digitalWrite(0, state);
-
   static unsigned long previousNowMicros = 0;
   auto nowMicros = micros();
   if (previousNowMicros) {
@@ -100,6 +97,13 @@ void progress() {
     ++loopDurationMicrosBuckets[log2(loopDuration)];
   }
   previousNowMicros = nowMicros;
+
+  auto nowSeconds = nowMicros / 1000000;
+  auto gpio0state = ((nowSeconds / 3) % 2) ? HIGH : LOW;
+  digitalWrite(0, gpio0state);
+
+  auto gpio13state = ((nowSeconds / 3) % 2) ? LOW : HIGH;
+  digitalWrite(13, gpio13state);
 }
 
 void loop(void){
