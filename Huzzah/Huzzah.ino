@@ -24,7 +24,7 @@ ESP8266WebServer server(80);
 
 void handleRoot();
 void handleFileGet();
-void handleFilePost();
+void handleFileUpload();
 void handleStats();
 void handleNotFound();
 
@@ -56,8 +56,8 @@ void startWebServer() {
   server.on("/file", HTTPMethod::HTTP_GET, handleFileGet);
   server.on("/file",
       HTTPMethod::HTTP_POST,
-      [](){ Serial.println("WTAF?!"); server.send(HTTP_CODE_OK); },
-      handleFilePost);
+      [](){ server.send(HTTP_CODE_OK); },
+      handleFileUpload);
   server.on("/stats", handleStats);
   server.onNotFound(handleNotFound);
 
@@ -120,11 +120,8 @@ void handleFileGet() {
   }
 }
 
-void handleFilePost() {
-  Serial.println("handleFilePost1!!");
-
+void handleFileUpload() {
   static File currentFile;
-
   const auto& upload = server.upload();
 
   switch (upload.status) {
@@ -162,11 +159,7 @@ void handleFilePost() {
     server.send(HTTP_CODE_OK, "text/plain", "Aborted.");
     break;
   }
-  default: {
-    Serial.print("WTF?! Code "); Serial.println(upload.status);
   }
-  }
-
 }
 
 void handleStats() {
