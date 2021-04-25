@@ -1,3 +1,3 @@
-mode = 'test_pattern'
+mode = 'ruler'
 
 brightness = 10

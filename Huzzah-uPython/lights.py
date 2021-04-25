@@ -14,6 +14,9 @@ strips = [
 ]
 
 
+SHELVES = [13, 30, 47, 67, 88]
+
+
 def stop(frame):
   for strip in strips:
     strip.fill((0,) * 4)
@@ -40,6 +43,13 @@ def test_pattern(frame):
     strips[1][N_TOP - 1] = (0, 255, 0, 0)
     strips[1][N_TOP] = (0, 255, 0, 0)
 
+
+def ruler(_):
+  for strip in strips:
+    for n in range(strip.n):
+      strip[n] = (0, 0, 127, 0) if ((n // 10) % 2) else (0, 0, 0, 79)
+  for n in SHELVES:
+    strips[0][n] = (255, 0, 0, 0)
 
 
 oops = None
