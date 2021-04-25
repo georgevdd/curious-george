@@ -17,9 +17,37 @@ strips = [
 SHELVES = [13, 30, 47, 67, 88]
 
 
+class Region:
+
+  def __init__(self, strip, indices):
+    self.strip = strip
+    self.indices = list(indices)
+
+  def __getitem__(self, key):
+    if isinstance(key, slice):
+      return Region(self.strip, [self.indices[n] for n in range(key.start or 0, key.stop or len(self.indices), key.step or 1)])
+    else:
+      return self.strip[key]
+
+  def __setitem__(self, key, value):
+    if isinstance(key, slice):
+      for n in range(key.start or 0, key.stop or len(self.indices), key.step or 1):
+        self.strip[self.indices[n]] = value
+
+TOP = Region(strips[1], range(N_TOP))
+LEFT = Region(strips[0], range(N_SIDE))
+RIGHT = Region(strips[1], range(N_TOP, N_TOP + N_SIDE))
+
+
 def stop(frame):
   for strip in strips:
     strip.fill((0,) * 4)
+
+
+def test_regions(frame):
+  TOP[:] = (0, 0, 0, 10)
+  LEFT[:] = (20, 0, 0, 0)
+  RIGHT[:] = (0, 20, 0, 0)
 
 
 def chasers(strip, frame):
