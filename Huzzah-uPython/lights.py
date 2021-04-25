@@ -41,15 +41,14 @@ def test_pattern(frame):
     strips[1][N_TOP] = (0, 255, 0, 0)
 
 
-oops = None
 
-_this_module = sys.modules[__name__]
-mode_fn = None
+oops = None
 
 
 async def run():
+  _this_module = sys.modules[__name__]
+  mode_fn = None
   frame = 0
-  global mode_fn
   while True:
     try:
       new_mode_fn = getattr(_this_module, state.mode, None)
