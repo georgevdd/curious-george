@@ -1,56 +1,15 @@
 #!/usr/bin/env micropython
 
-import machine
+import json
 import network
 import tinyweb
 import gc
 
-
-# PINs available for use
-pins = {4: 'D2',
-        5: 'D1',
-        12: 'D6',
-        13: 'D7',
-        14: 'D5',
-        15: 'D8',
-        16: 'D0'}
+import state
 
 
 # Create web server
 app = tinyweb.server.webserver()
-
-
-# Index page
-@app.route('/')
-@app.route('/index.html')
-async def index(req, resp):
-    await resp.send_file('static/index.html')
-
-
-# JS files.
-# Since ESP8266 is low memory platform - it totally make sense to
-# pre-gzip all large files (>1k) and then send gzipped version
-@app.route('/js/<fn>')
-async def files_js(req, resp, fn):
-    await resp.send_file('static/js/{}.gz'.format(fn),
-                         content_type='application/javascript',
-                         content_encoding='gzip')
-
-
-# The same for css files - e.g.
-# Raw version of bootstrap.min.css is about 146k, compare to gzipped version - 20k
-@app.route('/css/<fn>')
-async def files_css(req, resp, fn):
-    await resp.send_file('static/css/{}.gz'.format(fn),
-                         content_type='text/css',
-                         content_encoding='gzip')
-
-
-# Images
-@app.route('/images/<fn>')
-async def files_images(req, resp, fn):
-    await resp.send_file('static/images/{}'.format(fn),
-                         content_type='image/jpeg')
 
 
 # RESTAPI: System status
@@ -70,42 +29,44 @@ class Status():
         return {'memory': mem, 'network': net}
 
 
-# RESTAPI: GPIO status
-class GPIOList():
+# State
+
+class StateList():
 
     def get(self, data):
-        res = []
-        for p, d in pins.items():
-            val = machine.Pin(p).value()
-            res.append({'gpio': p, 'nodemcu': d, 'value': val})
-        return {'pins': res}
+        return {
+            k: getattr(state, k)
+            for k in dir(state)
+            if not k.startswith('_')
+        }
 
 
-# RESTAPI: GPIO controller: turn PINs on/off
-class GPIO():
+class State():
 
-    def put(self, data, pin):
-        # Check input parameters
-        if 'value' not in data:
-            return {'message': '"value" is requred'}, 400
-        # Check pin
-        pin = int(pin)
-        if pin not in pins:
-            return {'message': 'no such pin'}, 404
-        # Change state
-        val = int(data['value'])
-        machine.Pin(pin).value(val)
-        return {'message': 'changed', 'value': val}
+    def put(self, data, key):
+        new_value = data.get('value')
+        if new_value is None:
+            return {'message': '"value" is required'}, 400
+        try:
+            old_value = getattr(state, key)
+        except AttributeError as e:
+            return {'message': "Unknown setting '%s'" % key}, 404
+        new_value = json.loads(new_value)
+        if type(new_value) != type(old_value):
+            raise TypeError(
+                "Type mismatch: '%s' is a %s but existing value is a %s." %
+                (new_value, type(new_value), type(old_value)))
+        setattr(state, key, new_value)
+
+gc.collect()
+
+
+app.add_resource(Status, '/api/system')
+app.add_resource(StateList, '/api/state')
+app.add_resource(State, '/api/state/<key>')
 
 
 def run():
-    # Set all pins to OUT mode
-    for p, d in pins.items():
-        machine.Pin(p, machine.Pin.OUT)
-
-    app.add_resource(Status, '/api/status')
-    app.add_resource(GPIOList, '/api/gpio')
-    app.add_resource(GPIO, '/api/gpio/<pin>')
     app.run(host='0.0.0.0', port=8081)
 
 
