@@ -29,6 +29,15 @@ class Status():
         return {'memory': mem, 'network': net}
 
 
+# Reset
+
+class Reset():
+
+    def put(self, data):
+        import machine
+        machine.soft_reset()
+
+
 # State
 
 class StateList():
@@ -64,6 +73,7 @@ gc.collect()
 app.add_resource(Status, '/api/system')
 app.add_resource(StateList, '/api/state')
 app.add_resource(State, '/api/state/<key>')
+app.add_resource(Reset, '/api/reset')
 
 
 def run():
