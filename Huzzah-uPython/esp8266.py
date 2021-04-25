@@ -35,7 +35,10 @@ class Reset():
 
     def put(self, data):
         import machine
-        machine.soft_reset()
+        if 'soft' in data:
+            machine.soft_reset()
+        else:
+            machine.reset()
 
 
 # State
@@ -60,11 +63,14 @@ class State():
             old_value = getattr(state, key)
         except AttributeError as e:
             return {'message': "Unknown setting '%s'" % key}, 404
-        new_value = json.loads(new_value)
+        try:
+            new_value = json.loads(new_value)
+        except:
+            return {'message': "Couldn't parse '%s' as JSON" % new_value}, 400
         if type(new_value) != type(old_value):
-            raise TypeError(
-                "Type mismatch: '%s' is a %s but existing value is a %s." %
-                (new_value, type(new_value), type(old_value)))
+            return {'message': "Expecting a value of type %s, not %s" %
+                        (type(old_value).__name__,
+                         type(new_value).__name__)}, 400
         setattr(state, key, new_value)
 
 gc.collect()
