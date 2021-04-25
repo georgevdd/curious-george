@@ -8,7 +8,7 @@ import gc
 #webrepl.start()
 gc.collect()
 
-import credentials
+import net_config
 
 def do_connect():
   import network
@@ -16,9 +16,13 @@ def do_connect():
   if not sta_if.isconnected():
     print('connecting to network...')
     sta_if.active(True)
-    sta_if.connect(credentials.ssid, credentials.password)
+    sta_if.connect(net_config.ssid, net_config.password)
     while not sta_if.isconnected():
       pass
+    maybe_static_ip = getattr(net_config, 'static_ip', None)
+    if maybe_static_ip:
+      ip_config = sta_if.ifconfig()
+      sta_if.ifconfig((maybe_static_ip,) + ip_config[1:])
     print('network config:', sta_if.ifconfig())
 
 do_connect()
