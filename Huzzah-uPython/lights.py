@@ -43,13 +43,19 @@ def test_pattern(frame):
 
 oops = None
 
+_this_module = sys.modules[__name__]
+mode_fn = None
+
 
 async def run():
   frame = 0
   global mode_fn
   while True:
     try:
-      test_pattern(frame)
+      new_mode_fn = getattr(_this_module, state.mode, None)
+      if new_mode_fn and new_mode_fn is not mode_fn:
+        mode_fn = new_mode_fn
+      mode_fn(frame)
       for strip in strips:
         strip.write()
       frame = frame + 1
