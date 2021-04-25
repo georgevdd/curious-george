@@ -33,7 +33,7 @@ class Status():
 
 class Reset():
 
-    def put(self, data):
+    def post(self, data):
         import machine
         if 'soft' in data:
             machine.soft_reset()
