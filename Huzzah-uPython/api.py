@@ -72,6 +72,7 @@ class State():
                         (type(old_value).__name__,
                          type(new_value).__name__)}, 400
         setattr(state, key, new_value)
+        return {'message': 'changed', 'value': json.dumps(new_value)}
 
 gc.collect()
 
@@ -80,6 +81,11 @@ app.add_resource(Status, '/api/system')
 app.add_resource(StateList, '/api/state')
 app.add_resource(State, '/api/state/<key>')
 app.add_resource(Reset, '/api/reset')
+
+
+# Hack to make everything available to pages loaded from 'file://'
+for _, params in app.explicit_url_map.values():
+  params['allowed_access_control_origins'] = 'null'
 
 
 def run():
