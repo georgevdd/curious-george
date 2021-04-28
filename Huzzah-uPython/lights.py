@@ -1,9 +1,12 @@
+from math import floor, log
 import machine
 import neopixel
 import sys
 import uasyncio as asyncio
+import utime as time
 
 import state
+import stats
 
 N_SIDE = 108
 N_TOP = 48
@@ -101,9 +104,18 @@ async def run():
   _this_module = sys.modules[__name__]
   mode_fn = None
   frame = 0
+  prev_tick = None
+  log2 = log(2)
   while True:
     try:
+      cur_tick = time.ticks_us()
+      if prev_tick:
+        duration_ticks = time.ticks_diff(cur_tick, prev_tick)
+        stats.last_loop_micros[frame %
+                               len(stats.last_loop_micros)] = duration_ticks
+        stats.log2_loop_micros[floor(log(duration_ticks) // log2)] += 1
       new_mode_fn = getattr(_this_module, state.mode, None)
+      prev_tick = cur_tick
       if new_mode_fn and new_mode_fn is not mode_fn:
         mode_fn = new_mode_fn
       mode_fn(frame)

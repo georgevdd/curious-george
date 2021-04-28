@@ -6,6 +6,7 @@ import tinyweb
 import gc
 
 import state
+import stats
 
 
 # Create web server
@@ -26,7 +27,13 @@ class Status():
                'gateway': ifconfig[2],
                'dns': ifconfig[3]
                }
-        return {'memory': mem, 'network': net}
+        statistics = {
+            k: getattr(stats, k)
+            for k in dir(stats) if not k.startswith('_')
+            }
+        return {'memory': mem,
+                'network': net,
+                'stats': statistics}
 
 
 # Reset
