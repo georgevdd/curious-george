@@ -23,6 +23,9 @@ class ContiguousRegionGetItemTest(unittest.TestCase):
   def test_contiguous_slice_gives_contiguous_region(self):
     self.assertEqual(cr(5, 10), self.r[5:10])
 
+  def test_slice_stop_is_limited_to_region_stop(self):
+    self.assertEqual(cr(5, 20), self.r[5:50])
+
   def test_contiguous_reversed_slice_gives_contiguous_reversed_region(self):
     self.assertEqual(cr(12, 3), self.r[12:3:-1])
 
@@ -54,6 +57,11 @@ class ContiguousRegionSetItemTest(unittest.TestCase):
   def test_set_contiguous_slice_fills_contiguous_region(self):
     self.r[2:7] = 1000
     self.assertEqual([100, 101, 1000, 1000, 1000, 1000, 1000, 107, 108, 109],
+                     self.fake_strip)
+
+  def test_set_slice_beyond_region_stop_fills_to_region_stop(self):
+    self.r[5:50] = 1000
+    self.assertEqual([100, 101, 102, 103, 104, 1000, 1000, 1000, 1000, 1000],
                      self.fake_strip)
 
   def test_set_contiguous_reversed_slice_fills_contiguous_region(self):

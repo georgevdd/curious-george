@@ -66,6 +66,8 @@ class ContiguousRegion:
         stop = (key.stop if key.stop is not None
                 else (len(self) if step == 1 else 0))
 
+        if stop > len(self): stop = len(self)
+
         if sgn == -1:
           start = -start
           stop = -stop
@@ -96,6 +98,8 @@ class ContiguousRegion:
                  else (0 if step == 1 else len(self)-1))
         stop = (key.stop if key.stop is not None
                 else (len(self) if step == 1 else -1))
+
+        if stop > len(self): stop = len(self)
 
         if sgn == -1:
           start = -start
