@@ -5,6 +5,7 @@ import sys
 import uasyncio as asyncio
 import utime as time
 
+import region
 import state
 import stats
 
@@ -20,42 +21,9 @@ strips = [
 SHELVES = [13, 30, 47, 67, 88]
 
 
-class Region:
-  """An indexable sequence of pixels in a single strip.
-
-  See https://docs.micropython.org/en/latest/genrst/builtin_types.html
-  for some limitations of slicing in MicroPython.
-  """
-
-  def __init__(self, strip, indices):
-    self.strip = strip
-    self.indices = list(indices)
-
-  def __getitem__(self, key):
-    if isinstance(key, slice):
-      return Region(self.strip, [
-        self.indices[n] for n in range(key.start or 0,
-                                       key.stop or len(self.indices),
-                                       key.step or 1)])
-    else:
-      return self.strip[self.indices[key]]
-
-  def __setitem__(self, key, value):
-    if isinstance(key, slice):
-      for n in range(key.start or 0,
-                     key.stop or len(self.indices),
-                     key.step or 1):
-        self.strip[self.indices[n]] = value
-    else:
-      self.strip[self.indices[key]] = value
-
-  def __len__(self):
-    return len(self.indices)
-
-
-TOP = Region(strips[1], range(N_TOP))
-LEFT = Region(strips[0], range(N_SIDE))
-RIGHT = Region(strips[1], range(N_TOP, N_TOP + N_SIDE))
+TOP = region.Region(strips[1], range(N_TOP))
+LEFT = region.Region(strips[0], range(N_SIDE))
+RIGHT = region.Region(strips[1], range(N_TOP, N_TOP + N_SIDE))
 
 
 def stop(frame):
