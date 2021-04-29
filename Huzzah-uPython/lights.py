@@ -21,9 +21,9 @@ strips = [
 SHELVES = [13, 30, 47, 67, 88]
 
 
-TOP = region.Region(strips[1], range(N_TOP))
-LEFT = region.Region(strips[0], range(N_SIDE))
-RIGHT = region.Region(strips[1], range(N_TOP, N_TOP + N_SIDE))
+TOP = region.ContiguousRegion(strips[1], 0, N_TOP)
+LEFT = region.ContiguousRegion(strips[0], 0, N_SIDE)
+RIGHT = region.ContiguousRegion(strips[1], N_TOP, N_TOP + N_SIDE)
 
 
 def stop(frame):
