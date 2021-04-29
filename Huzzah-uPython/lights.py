@@ -101,6 +101,24 @@ def ruler(_):
   TOP[:] = (0, 0, 0, 79)
 
 
+def rainbow(frame):
+  red = (255, 0, 0, 0)
+  orange = (255, 127, 0, 0)
+  yellow = (255, 255, 0, 0)
+  green = (0, 255, 0, 0)
+  blue = (0, 127, 255, 0)
+  indigo = (0, 0, 255, 0)
+  violet = (63, 0, 255, 0)
+
+  TOP[:] = red
+  side_colours = [orange, yellow, green, blue, indigo, violet]
+  for strip in LEFT, RIGHT:
+    for colour, start, stop in zip(side_colours,
+                                   [0] + SHELVES,
+                                   SHELVES + [len(strip)]):
+      strip[start:stop] = colour
+
+
 oops = None
 
 
