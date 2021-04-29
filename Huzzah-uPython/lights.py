@@ -49,6 +49,9 @@ class Region:
     else:
       self.strip[self.indices[key]] = value
 
+  def __len__(self):
+    return len(self.indices)
+
 
 TOP = Region(strips[1], range(N_TOP))
 LEFT = Region(strips[0], range(N_SIDE))
@@ -90,11 +93,12 @@ def test_pattern(frame):
 
 
 def ruler(_):
-  for strip in strips:
-    for n in range(strip.n):
+  for strip in LEFT, RIGHT:
+    for n in range(len(strip)):
       strip[n] = (0, 0, 127, 0) if ((n // 10) % 2) else (0, 0, 0, 79)
-  for n in SHELVES:
-    strips[0][n] = (255, 0, 0, 0)
+    for n in SHELVES:
+      strip[n] = (255, 0, 0, 0)
+  TOP[:] = (0, 0, 0, 79)
 
 
 oops = None
