@@ -1,3 +1,3 @@
-mode = 'test_regions'
+mode = 'test_pattern'
 
 brightness = 10

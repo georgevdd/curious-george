@@ -29,9 +29,12 @@ LEFT = region.ContiguousRegion(strips[0], 0, N_SIDE)
 RIGHT = region.ContiguousRegion(strips[1], N_TOP, N_TOP + N_SIDE)
 
 
-def stop(frame):
+def stop():
   for strip in strips:
     strip.fill(colour(0, 0, 0, 0))
+
+  while True:
+    yield
 
 
 def test_regions(frame):
@@ -42,26 +45,30 @@ def test_regions(frame):
   RIGHT[:] = colour(0, 20, 0, 0)
 
 
-def chasers(strip, frame):
-  n = frame
-  strip[n % strip.n] = colour(0, 0, 0, 255)
-  strip[(n + strip.n//4) % strip.n] = colour(255, 0, 0, 0)
-  strip[(n + strip.n//2) % strip.n] = colour(0, 255, 0, 0)
-  strip[(n + 3*(strip.n//4)) % strip.n] = colour(0, 0, 255, 0)
+def test_pattern():
+  red = colour(255, 0, 0, 0)
+  green = colour(0, 255, 0, 0)
+  blue = colour(0, 0, 255, 0)
+  white = colour(0, 0, 0, 255)
 
+  #strip.fill((state.brightness,) * 4)
 
-def test_pattern(frame):
+  def chasers(strip, frame):
+    n = frame
+    sn = len(strip)
+    strip[n % sn] = white
+    strip[(n + sn//4) % sn] = red
+    strip[(n + sn//2) % sn] = green
+    strip[(n + 3*(sn//4)) % sn] = blue
 
-  for strip in strips:
-#    strip.fill((state.brightness,) * 4)
-    chasers(strip, frame)
-
-  strip[0] = colour(0, 255, 0, 0)
-  strip[strip.n - 1] = colour(0, 255, 0, 0)
-
-  for strip in strips:
-    strips[1][N_TOP - 1] = colour(0, 255, 0, 0)
-    strips[1][N_TOP] = colour(0, 255, 0, 0)
+  frame = 0
+  while True:
+    for strip in LEFT, RIGHT, TOP:
+      chasers(strip, frame)
+      strip[0] = green
+      strip[-1] = green
+    frame += 1
+    yield
 
 
 def ruler(_):
@@ -101,7 +108,10 @@ oops = None
 
 async def run():
   _this_module = sys.modules[__name__]
-  mode_fn = None
+
+  mode = None
+  mode_gen = stop()
+
   frame = 0
   prev_tick = None
   log2 = log(2)
@@ -113,11 +123,22 @@ async def run():
         stats.last_loop_micros[frame %
                                len(stats.last_loop_micros)] = duration_ticks
         stats.log2_loop_micros[floor(log(duration_ticks) // log2)] += 1
-      new_mode_fn = getattr(_this_module, state.mode, None)
       prev_tick = cur_tick
-      if new_mode_fn and new_mode_fn is not mode_fn:
-        mode_fn = new_mode_fn
-      mode_fn(frame)
+
+      if mode != state.mode:
+        mode = state.mode
+        new_mode_gen = getattr(_this_module, mode, None)
+        mode_gen = new_mode_gen() if new_mode_gen else None
+        del new_mode_gen
+        gc.collect()
+
+      if mode_gen:
+        try:
+          next(mode_gen)
+        except StopIteration:
+          mode_gen = None
+          gc.collect()
+
       for strip in strips:
         strip.write()
       frame = frame + 1
