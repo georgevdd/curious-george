@@ -1,3 +1,4 @@
+import gc
 from math import floor, log
 import machine
 import neopixel
@@ -5,6 +6,7 @@ import sys
 import uasyncio as asyncio
 import utime as time
 
+import geopixel
 import region
 import state
 import stats
@@ -13,10 +15,11 @@ N_SIDE = 108
 N_TOP = 48
 
 strips = [
-  neopixel.NeoPixel(machine.Pin(0, machine.Pin.OUT), n=N_SIDE, bpp=4),
-  neopixel.NeoPixel(machine.Pin(13, machine.Pin.OUT), n=N_TOP + N_SIDE, bpp=4),
+  geopixel.GeoPixel(machine.Pin(0, machine.Pin.OUT), n=N_SIDE),
+  geopixel.GeoPixel(machine.Pin(13, machine.Pin.OUT), n=N_TOP + N_SIDE),
 ]
 
+colour = geopixel.colour
 
 SHELVES = [13, 30, 47, 67, 88]
 
@@ -28,22 +31,23 @@ RIGHT = region.ContiguousRegion(strips[1], N_TOP, N_TOP + N_SIDE)
 
 def stop(frame):
   for strip in strips:
-    strip.fill((0,) * 4)
+    strip.fill(colour(0, 0, 0, 0))
 
 
 def test_regions(frame):
-  TOP[:] = (0, 0, 0, 10)
-  TOP[0] = TOP[-1] = (0, 0, 80, 0)
-  LEFT[:] = (20, 0, 0, 0)
-  RIGHT[:] = (0, 20, 0, 0)
+  gc.collect()
+  TOP[:] = colour(0, 0, 0, 10)
+  TOP[0] = TOP[-1] = colour(0, 0, 80, 0)
+  LEFT[:] = colour(20, 0, 0, 0)
+  RIGHT[:] = colour(0, 20, 0, 0)
 
 
 def chasers(strip, frame):
   n = frame
-  strip[n % strip.n] = (0, 0, 0, 255)
-  strip[(n + strip.n//4) % strip.n] = (255, 0, 0, 0)
-  strip[(n + strip.n//2) % strip.n] = (0, 255, 0, 0)
-  strip[(n + 3*(strip.n//4)) % strip.n] = (0, 0, 255, 0)
+  strip[n % strip.n] = colour(0, 0, 0, 255)
+  strip[(n + strip.n//4) % strip.n] = colour(255, 0, 0, 0)
+  strip[(n + strip.n//2) % strip.n] = colour(0, 255, 0, 0)
+  strip[(n + 3*(strip.n//4)) % strip.n] = colour(0, 0, 255, 0)
 
 
 def test_pattern(frame):
@@ -52,39 +56,44 @@ def test_pattern(frame):
 #    strip.fill((state.brightness,) * 4)
     chasers(strip, frame)
 
-  strip[0] = (0, 255, 0, 0)
-  strip[strip.n - 1] = (0, 255, 0, 0)
+  strip[0] = colour(0, 255, 0, 0)
+  strip[strip.n - 1] = colour(0, 255, 0, 0)
 
   for strip in strips:
-    strips[1][N_TOP - 1] = (0, 255, 0, 0)
-    strips[1][N_TOP] = (0, 255, 0, 0)
+    strips[1][N_TOP - 1] = colour(0, 255, 0, 0)
+    strips[1][N_TOP] = colour(0, 255, 0, 0)
 
 
 def ruler(_):
+  red = colour(255, 0, 0, 0)
+  blue = colour(0, 0, 127, 0)
+  white = colour(0, 0, 0, 79)
   for strip in LEFT, RIGHT:
-    for n in range(len(strip)):
-      strip[n] = (0, 0, 127, 0) if ((n // 10) % 2) else (0, 0, 0, 79)
+    b = False
+    for n in range(0, len(strip), 10):
+      strip[n:n+10] = blue if b else white
+      b = not b
     for n in SHELVES:
-      strip[n] = (255, 0, 0, 0)
-  TOP[:] = (0, 0, 0, 79)
+      strip[n] = red
+  TOP[:] = white
 
 
 def rainbow(frame):
-  red = (255, 0, 0, 0)
-  orange = (255, 127, 0, 0)
-  yellow = (255, 255, 0, 0)
-  green = (0, 255, 0, 0)
-  blue = (0, 127, 255, 0)
-  indigo = (0, 0, 255, 0)
-  violet = (63, 0, 255, 0)
+  red = colour(255, 0, 0, 0)
+  orange = colour(255, 127, 0, 0)
+  yellow = colour(255, 255, 0, 0)
+  green = colour(0, 255, 0, 0)
+  blue = colour(0, 127, 255, 0)
+  indigo = colour(0, 0, 255, 0)
+  violet = colour(63, 0, 255, 0)
 
   TOP[:] = red
   side_colours = [orange, yellow, green, blue, indigo, violet]
   for strip in LEFT, RIGHT:
-    for colour, start, stop in zip(side_colours,
-                                   [0] + SHELVES,
-                                   SHELVES + [len(strip)]):
-      strip[start:stop] = colour
+    for start, stop, c in zip([0] + SHELVES,
+                              SHELVES + [len(strip)],
+                              side_colours):
+      strip[start:stop] = c
 
 
 oops = None
