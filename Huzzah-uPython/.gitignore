@@ -1,3 +1,4 @@
 net_config.py
 *.mpy
 __pycache__
+*.pyc
