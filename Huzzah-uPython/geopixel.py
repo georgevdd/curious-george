@@ -23,7 +23,13 @@ class GeoPixel:
 
     def __setitem__(self, index, val):
         offset = index << 2
-        self.buf[offset:offset+4] = val
+
+        # This ought to be:
+        #   self.buf[offset:offset+4] = val
+        # but that appears to leak resources.
+        b = self.buf
+        for n in range(4):
+            b[offset+n] = val[n]
 
     def __getitem__(self, index):
         offset = index << 2
