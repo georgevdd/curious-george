@@ -33,45 +33,48 @@ def stop():
   for strip in strips:
     strip.fill(colour(0, 0, 0, 0))
 
-  while True:
-    yield
 
-
-def test_regions(frame):
-  gc.collect()
+def test_regions():
   TOP[:] = colour(0, 0, 0, 10)
   TOP[0] = TOP[-1] = colour(0, 0, 80, 0)
   LEFT[:] = colour(20, 0, 0, 0)
   RIGHT[:] = colour(0, 20, 0, 0)
 
 
+red = colour(255, 0, 0, 0)
+green = colour(0, 255, 0, 0)
+blue = colour(0, 0, 255, 0)
+white = colour(0, 0, 0, 255)
+
+def chasers(strip, frame):
+  n = frame
+  sn = len(strip)
+  strip[n % sn] = white
+  strip[(n + sn//4) % sn] = red
+  strip[(n + sn//2) % sn] = green
+  strip[(n + 3*(sn//4)) % sn] = blue
+
+
 def test_pattern():
-  red = colour(255, 0, 0, 0)
-  green = colour(0, 255, 0, 0)
-  blue = colour(0, 0, 255, 0)
-  white = colour(0, 0, 0, 255)
-
   #strip.fill((state.brightness,) * 4)
-
-  def chasers(strip, frame):
-    n = frame
-    sn = len(strip)
-    strip[n % sn] = white
-    strip[(n + sn//4) % sn] = red
-    strip[(n + sn//2) % sn] = green
-    strip[(n + 3*(sn//4)) % sn] = blue
 
   frame = 0
   while True:
+    n = frame
     for strip in LEFT, RIGHT, TOP:
-      chasers(strip, frame)
+      sn = strip.stop - strip.start
+      strip[n % sn] = white
+      strip[(n + sn//4) % sn] = red
+      strip[(n + sn//2) % sn] = green
+      strip[(n + 3*(sn//4)) % sn] = blue
+
       strip[0] = green
       strip[-1] = green
-    frame += 1
+    frame = frame + 1
     yield
 
 
-def ruler(_):
+def ruler():
   red = colour(255, 0, 0, 0)
   blue = colour(0, 0, 127, 0)
   white = colour(0, 0, 0, 79)
@@ -85,7 +88,7 @@ def ruler(_):
   TOP[:] = white
 
 
-def rainbow(frame):
+def rainbow():
   red = colour(255, 0, 0, 0)
   orange = colour(255, 127, 0, 0)
   yellow = colour(255, 255, 0, 0)
@@ -109,8 +112,8 @@ oops = None
 async def run():
   _this_module = sys.modules[__name__]
 
-  mode = None
-  mode_gen = stop()
+  mode = None  # Name of the current mode
+  mode_gen = None  # Generator of current mode behaviour
 
   frame = 0
   prev_tick = None
