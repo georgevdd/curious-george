@@ -56,8 +56,6 @@ def chasers(strip, frame):
 
 
 def test_pattern():
-  #strip.fill((state.brightness,) * 4)
-
   frame = 0
   while True:
     n = frame
@@ -89,21 +87,27 @@ def ruler():
 
 
 def rainbow():
-  red = colour(255, 0, 0, 0)
-  orange = colour(255, 127, 0, 0)
-  yellow = colour(255, 255, 0, 0)
-  green = colour(0, 255, 0, 0)
-  blue = colour(0, 127, 255, 0)
-  indigo = colour(0, 0, 255, 0)
-  violet = colour(63, 0, 255, 0)
+  w = None
+  while True:
+    if w == state.brightness:
+      yield
+    w = state.brightness
 
-  TOP[:] = red
-  side_colours = [orange, yellow, green, blue, indigo, violet]
-  for strip in LEFT, RIGHT:
-    for start, stop, c in zip([0] + SHELVES,
-                              SHELVES + [len(strip)],
-                              side_colours):
-      strip[start:stop] = c
+    red = colour(255, 0, 0, w)
+    orange = colour(255, 127, 0, w)
+    yellow = colour(255, 255, 0, w)
+    green = colour(0, 255, 0, w)
+    blue = colour(0, 127, 255, w)
+    indigo = colour(0, 0, 255, w)
+    violet = colour(63, 0, 255, w)
+
+    TOP[:] = red
+    side_colours = [orange, yellow, green, blue, indigo, violet]
+    for strip in LEFT, RIGHT:
+      for start, stop, c in zip([0] + SHELVES,
+                                SHELVES + [len(strip)],
+                                side_colours):
+        strip[start:stop] = c
 
 
 oops = None
