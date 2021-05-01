@@ -52,12 +52,8 @@ class ContiguousRegion:
     self.start = start
     self.stop = stop
 
-  @property
-  def signum(self):
-    return 1 if self.stop >= self.start else -1
-
   def __getitem__(self, key):
-    sgn = self.signum
+    sgn = 1 if self.stop >= self.start else -1
     if isinstance(key, slice):
       step = key.step or 1
       if step in (1, -1):
@@ -90,16 +86,18 @@ class ContiguousRegion:
       return self.strip[self.start + sgn * key]
 
   def __setitem__(self, key, value):
-    sgn = self.signum
+    sgn = 1 if self.stop >= self.start else -1
+    length = abs(self.stop - self.start)
+
     if isinstance(key, slice):
       step = key.step or 1
       if step in (1, -1):
         start = (key.start if key.start is not None
-                 else (0 if step == 1 else len(self)-1))
+                 else (0 if step == 1 else length-1))
         stop = (key.stop if key.stop is not None
-                else (len(self) if step == 1 else -1))
+                else (length if step == 1 else -1))
 
-        if stop > len(self): stop = len(self)
+        if stop > length: stop = length
 
         if sgn == -1:
           start = -start
