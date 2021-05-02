@@ -91,6 +91,7 @@ def rainbow():
   while True:
     if w == state.brightness:
       yield
+      continue
     w = state.brightness
 
     red = colour(255, 0, 0, w)
