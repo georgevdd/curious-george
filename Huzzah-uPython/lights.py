@@ -111,6 +111,65 @@ def rainbow():
         strip[start:stop] = c
 
 
+def just_red():
+  # Paula's fantasy
+  w = state.brightness
+  red = colour(255, 0, 0, w)
+  orange = colour(255, 127, 0, w)
+  yellow = colour(255, 255, 0, w)
+  TOP[:] = red
+  LEFT[:] = red
+  RIGHT[:] = red
+
+
+def colombia():
+  w = None
+  while True:
+    if w == state.brightness:
+      yield
+      continue
+    w = state.brightness
+
+    yellow = colour(255, 255, 0, w)
+    blue = colour(0, 0, 255, w)
+    red = colour(255, 0, 0, w)
+    TOP[:] = yellow
+    for side in LEFT, RIGHT:
+      boundaries = SHELVES[2], (SHELVES[3]+SHELVES[4])//2
+      side[:boundaries[0]] = yellow
+      side[boundaries[0]:boundaries[1]] = blue
+      side[boundaries[1]:] = red
+
+
+def lerp(a, b, n):
+  l = b - a
+  for i in range(n):
+    yield a + (l * i) // (n-1)
+
+
+def clerp(a, b, n):
+  g0, r0, b0, w0 = a
+  g1, r1, b1, w1 = b
+  for r, g, b, w in zip(
+      lerp(r0, r1, n),
+      lerp(g0, g1, n),
+      lerp(b0, b1, n),
+      lerp(w0, w1, n)):
+    yield colour(r, g, b, w)
+
+
+def sunset():
+  w = 0  #state.brightness
+  red = colour(255, 0, 0, w)
+  orange = colour(255, 127, 0, w)
+  yellow = colour(255, 255, 0, w)
+  TOP[:] = red
+  for side in LEFT, RIGHT:
+    #side[:] = clerp(red, yellow, len(side))
+    for n, c in enumerate(clerp(red, yellow, len(side))):
+      side[n] = c
+
+
 oops = None
 
 
