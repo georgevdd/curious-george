@@ -144,7 +144,8 @@
 
     <!--  ESP8266 scripts -->
     <script>
-      var api_url = "/api/";
+      var usp = new URLSearchParams(window.location.search);
+      var api_url = "http://" + usp.get("controller") + ":8081/api/";
 
       function update_system(data)
       {
