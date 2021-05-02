@@ -161,7 +161,8 @@
       {
           var res = "";
           current_mode = data["mode"];
-          $.each(["test_pattern", "test_regions", "ruler"], function(i, mode) {
+          $.each(["test_pattern", "test_regions", "ruler", "rainbow",
+                  "stop", "colombia", "just_red", "sunset"], function(i, mode) {
               var state = "Off";
               var btn = "<button type='radio' name='mode' class='btn btn-success' act=1 mode=" + mode + ">X</button>";
               if (mode == current_mode) {

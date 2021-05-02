@@ -90,11 +90,6 @@ app.add_resource(State, '/api/state/<key>')
 app.add_resource(Reset, '/api/reset')
 
 
-# Hack to make everything available to pages loaded from 'file://'
-for _, params in app.explicit_url_map.values():
-  params['allowed_access_control_origins'] = 'null'
-
-
 def run():
     app.run(host='0.0.0.0', port=8081)
 
