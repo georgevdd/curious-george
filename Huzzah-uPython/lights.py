@@ -160,14 +160,20 @@ def clerp(a, b, n):
 
 def sunset():
   w = 0  #state.brightness
-  red = colour(255, 0, 0, w)
-  orange = colour(255, 127, 0, w)
-  yellow = colour(255, 255, 0, w)
-  TOP[:] = red
-  for side in LEFT, RIGHT:
-    #side[:] = clerp(red, yellow, len(side))
-    for n, c in enumerate(clerp(red, yellow, len(side))):
-      side[n] = c
+
+  c1 = None
+  c2 = None
+  while True:
+    if c1 == state.colour1 and c2 == state.colour2:
+      yield
+      continue
+    c1 = state.colour1
+    c2 = state.colour2
+    TOP[:] = colour(*c1)
+    for side in LEFT, RIGHT:
+      #side[:] = clerp(red, yellow, len(side))
+      for n, c in enumerate(clerp(colour(*c1), colour(*c2), len(side))):
+        side[n] = c
 
 
 oops = None
