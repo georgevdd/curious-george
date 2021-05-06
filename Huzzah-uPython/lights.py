@@ -74,16 +74,27 @@ def test_pattern():
 
 def ruler():
   red = colour(255, 0, 0, 0)
-  blue = colour(0, 0, 127, 0)
-  white = colour(0, 0, 0, 79)
-  for strip in LEFT, RIGHT:
-    b = False
-    for n in range(0, len(strip), 10):
-      strip[n:n+10] = blue if b else white
-      b = not b
-    for n in SHELVES:
-      strip[n] = red
-  TOP[:] = white
+
+  c1 = None
+  c2 = None
+  while True:
+    if c1 == state.colour1 and c2 == state.colour2:
+      yield
+      continue
+    c1 = state.colour1
+    c2 = state.colour2
+
+    c1_ = colour(*c1)
+    c2_ = colour(*c2)
+
+    for strip in LEFT, RIGHT:
+      b = False
+      for n in range(0, len(strip), 10):
+        strip[n:n+10] = c1_ if b else c2_
+        b = not b
+      for n in SHELVES:
+        strip[n] = red
+    TOP[:] = c2_
 
 
 def rainbow():
