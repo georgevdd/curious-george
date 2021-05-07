@@ -1,8 +1,9 @@
-#! /usr/local/bin/python3
+#! /usr/bin/python3
 
 import os
 import http.server
 import socketserver
+import ssl
 
 class MyHttpRequestHandler(http.server.SimpleHTTPRequestHandler):
 
@@ -30,7 +31,15 @@ class MyHttpRequestHandler(http.server.SimpleHTTPRequestHandler):
 
 
 if __name__ == '__main__':
-  PORT = 8000
+  PORT = 4443
   os.chdir('static')
-  my_server = socketserver.TCPServer(("", PORT), MyHttpRequestHandler)
-  my_server.serve_forever()
+  server_address = ('0.0.0.0', PORT)
+  httpd = http.server.HTTPServer(server_address, MyHttpRequestHandler)
+  ssl_context = ssl.SSLContext()
+  ssl_context.load_cert_chain(
+      certfile='/etc/letsencrypt/live/bookcase.updog.net/fullchain.pem')
+      keyfile='/dev/stdin')
+  httpd.socket = ssl_context.wrap_socket(
+    httpd.socket,
+    server_side=True)
+  httpd.serve_forever()
