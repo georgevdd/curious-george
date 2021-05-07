@@ -1,5 +1,5 @@
 #! /usr/bin/python3
-
+import functools
 import os
 import http.server
 import socketserver
@@ -32,12 +32,13 @@ class MyHttpRequestHandler(http.server.SimpleHTTPRequestHandler):
 
 if __name__ == '__main__':
   PORT = 4443
-  os.chdir('static')
   server_address = ('0.0.0.0', PORT)
-  httpd = http.server.HTTPServer(server_address, MyHttpRequestHandler)
+  httpd = http.server.HTTPServer(
+    server_address,
+    functools.partial(MyHttpRequestHandler, directory='static'))
   ssl_context = ssl.SSLContext()
   ssl_context.load_cert_chain(
-      certfile='/etc/letsencrypt/live/bookcase.updog.net/fullchain.pem')
+      certfile='/etc/letsencrypt/live/bookcase.updog.net/fullchain.pem',
       keyfile='/dev/stdin')
   httpd.socket = ssl_context.wrap_socket(
     httpd.socket,
