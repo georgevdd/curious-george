@@ -1,9 +1,11 @@
+import errno
 import gc
 from math import floor, log
 import machine
 import neopixel
 import sys
 import uasyncio as asyncio
+import usocket as socket
 import utime as time
 
 import geopixel
@@ -187,6 +189,36 @@ def sunset():
         side[n] = c
 
 
+sock = None
+
+def datagram():
+  global sock
+  if sock is None:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(('', 5678))
+    sock.settimeout(0)
+
+  bytes_per_frame = sum(len(strip.buf) for strip in strips)
+
+  buf = bytearray(bytes_per_frame)
+  mv = memoryview(buf)
+
+  while True:
+    cursor = 0
+    while cursor < bytes_per_frame:
+      bytes_read = sock.readinto(mv[cursor:])
+      if bytes_read is None:
+        yield False
+      else:
+        cursor += bytes_read
+
+    cursor = 0
+    for strip in strips:
+      n = strip.n << 2
+      geopixel.neopixel_write(strip.pin, mv[cursor:cursor+n], 1)
+      cursor += n
+    yield False
+
 oops = None
 
 
@@ -218,16 +250,24 @@ async def run():
 
       if mode_gen:
         try:
-          next(mode_gen)
+          should_write = next(mode_gen)
         except StopIteration:
           mode_gen = None
+          should_write = False
           gc.collect()
 
-      for strip in strips:
-        strip.write()
+      if should_write is not False:
+        for strip in strips:
+          strip.write()
       frame = frame + 1
       await asyncio.sleep(0)
     except Exception as e:
       global oops
       oops = e
       raise
+
+
+def test_loop():
+  loop = asyncio.get_event_loop()
+  loop.create_task(run())
+  loop.run_forever()
