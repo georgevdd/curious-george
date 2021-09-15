@@ -67,8 +67,15 @@ class MyHttpRequestHandler(http.server.SimpleHTTPRequestHandler):
 
 
 if __name__ == '__main__':
-  PORT = 4443
   api_server_url = sys.argv[1]
+
+  if len(sys.argv) > 2:
+    PORT = int(sys.argv[2])
+  else:
+    PORT = 4443
+
+  secure = PORT not in (80, 8080)
+
   server_address = ('0.0.0.0', PORT)
   httpd = http.server.HTTPServer(
     server_address,
@@ -77,11 +84,12 @@ if __name__ == '__main__':
       directory='static',
       api_server_url=api_server_url,
       ))
-  ssl_context = ssl.SSLContext()
-  ssl_context.load_cert_chain(
-      certfile='/etc/letsencrypt/live/bookcase.updog.net/fullchain.pem',
-      keyfile='/dev/stdin')
-  httpd.socket = ssl_context.wrap_socket(
-    httpd.socket,
-    server_side=True)
+  if secure:
+    ssl_context = ssl.SSLContext()
+    ssl_context.load_cert_chain(
+        certfile='/etc/letsencrypt/live/bookcase.updog.net/fullchain.pem',
+        keyfile='/dev/stdin')
+    httpd.socket = ssl_context.wrap_socket(
+      httpd.socket,
+      server_side=True)
   httpd.serve_forever()
