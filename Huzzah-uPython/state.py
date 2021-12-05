@@ -1,4 +1,4 @@
-mode = 'test_pattern'
+mode = 'christmas'
 
 brightness = 10
 

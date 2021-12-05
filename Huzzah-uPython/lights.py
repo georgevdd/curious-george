@@ -21,6 +21,7 @@ strips = [
 
 colour = geopixel.colour
 
+# Offsets of each shelf from the top, in pixels.
 SHELVES = [13, 30, 47, 67, 88]
 
 
@@ -185,6 +186,14 @@ def sunset():
       #side[:] = clerp(red, yellow, len(side))
       for n, c in enumerate(clerp(colour(*c1), colour(*c2), len(side))):
         side[n] = c
+
+
+def christmas():
+  for strip in [LEFT, RIGHT]:
+    for n in SHELVES:
+      strip[n-10:n-1] = colour(0, 255, 0, 0)
+      strip[n] = colour(255, 0, 0, 0)
+
 
 
 oops = None
