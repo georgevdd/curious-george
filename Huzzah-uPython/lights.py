@@ -267,6 +267,14 @@ def datagram():
       cursor += n
     yield False
 
+def christmas():
+  for strip in [LEFT, RIGHT]:
+    for n in SHELVES:
+      strip[n-10:n-1] = colour(0, 255, 0, 0)
+      strip[n] = colour(255, 0, 0, 0)
+
+
+
 oops = None
 
 
