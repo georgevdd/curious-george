@@ -150,8 +150,7 @@
 
     <!--  ESP8266 scripts -->
     <script>
-      var usp = new URLSearchParams(window.location.search);
-      var api_url = "http://" + usp.get("controller") + ":8081/api/";
+      var api_url = "/api/";
 
       function update_system(data)
       {
@@ -208,8 +207,8 @@
 
           var res = "";
           current_mode = data["mode"];
-          $.each(["test_pattern", "test_regions", "ruler", "rainbow",
-                  "stop", "colombia", "just_red", "sunset"], function(i, mode) {
+          $.each(["christmas", "sunset", "ruler", "rainbow", "colombia", "just_red",
+                  "stop", "test_pattern", "test_regions"], function(i, mode) {
               var state = "Off";
               var btn = "<button type='radio' name='mode' class='btn btn-success' act=1 mode=" + mode + ">X</button>";
               if (mode == current_mode) {

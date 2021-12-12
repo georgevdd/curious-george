@@ -1,4 +1,4 @@
-mode = 'datagram'
+mode = 'christmas'
 
 brightness = 10
 

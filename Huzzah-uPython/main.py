@@ -1,7 +1,7 @@
 import api
-import run_lights
+import lights
 
 import uasyncio
-uasyncio.create_task(run_lights.run())
+uasyncio.create_task(lights.run())
 
 api.run()
