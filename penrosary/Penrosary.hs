@@ -28,8 +28,8 @@ initialState = FrameState {
 }
 
 strokeColor = Color4 0.5 0.5 1 1
-kiteColor   = Color4 0.8 0.8 1 1
 dartColor   = Color4 0.7 0.7 1 1
+kiteColor   = dartColor -- Color4 0.8 0.8 1 1
 
 unitVector :: Int -> Vec3
 unitVector 0 = vec3X
@@ -85,7 +85,7 @@ drawScene state = do
   cullFace $= Just Back
   let tiles = clipDeflate b sun' (deflations state)
       sun' = [Half Kite (m .*. linear (rotMatrix2 (fsAngle state))) | Half Kite m <- sun]
-      b = [(Vec3 (sin a') (cos a') 0, (-0.8)) | a' <- [0, pi/2 .. 2*pi]]
+      b = [] -- [(Vec3 (sin a') (cos a') 0, (-0.8)) | a' <- [0, pi/2 .. 2*pi]]
   mapM_ drawTile (fst tiles ++ snd tiles)
 
 onKeypress :: IORef FrameState -> KeyboardMouseCallback
